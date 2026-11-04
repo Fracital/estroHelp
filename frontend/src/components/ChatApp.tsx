@@ -126,7 +126,7 @@ export default function ChatApp() {
   const [sidebarOpen, setSidebarOpen] = useState(() => !isNarrow());
   const [sidebarWidth, setSidebarWidth] = useState(readSidebarWidth);
   const [wsWidth, setWsWidth] = useState<number | null>(readWsWidth);
-  const [resizing, setResizing] = useState(false);
+  const [resizing, setResizing] = useState<'' | 'sidebar' | 'ws'>('');
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
   const [pane, setPane] = useState<PaneTab | null>(null);
@@ -321,19 +321,19 @@ export default function ChatApp() {
 
   /** Drag the sidebar's right edge; the width lives in a CSS variable on the chat root. */
   /** Pointer-drag a width. `direction` is +1 when dragging right grows the panel, -1 when dragging left does. */
-  function dragWidth(e: PointerEvent, startW: number, direction: 1 | -1, clamp: (w: number) => number, apply: (w: number) => void, done: (w: number) => void) {
+  function dragWidth(e: PointerEvent, which: 'sidebar' | 'ws', startW: number, direction: 1 | -1, clamp: (w: number) => number, apply: (w: number) => void, done: (w: number) => void) {
     if (isNarrow() || e.button !== 0) return;
     const handle = e.currentTarget as HTMLElement;
     const startX = e.clientX;
     let w = startW;
     handle.setPointerCapture(e.pointerId);
-    setResizing(true);
+    setResizing(which);
     const move = (ev: PointerEvent) => { w = clamp(startW + direction * (ev.clientX - startX)); apply(w); };
     const up = () => {
       handle.removeEventListener('pointermove', move);
       handle.removeEventListener('pointerup', up);
       handle.removeEventListener('pointercancel', up);
-      setResizing(false);
+      setResizing('');
       done(w);
     };
     handle.addEventListener('pointermove', move);
@@ -342,7 +342,7 @@ export default function ChatApp() {
     e.preventDefault();
   }
   function startResize(e: PointerEvent) {
-    dragWidth(e, sidebarWidth, 1, (w) => Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, w)), setSidebarWidth, (w) => {
+    dragWidth(e, 'sidebar', sidebarWidth, 1, (w) => Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, w)), setSidebarWidth, (w) => {
       try { localStorage.setItem(SIDEBAR_KEY, String(w)); } catch {}
     });
   }
@@ -353,7 +353,7 @@ export default function ChatApp() {
   function wsMax() { return Math.max(WS_MIN, Math.floor(window.innerWidth * 0.7)); }
   function startWsResize(e: PointerEvent) {
     const current = wsWidth ?? (e.currentTarget as HTMLElement).nextElementSibling?.getBoundingClientRect().width ?? WS_MIN;
-    dragWidth(e, Math.round(current), -1, (w) => Math.min(wsMax(), Math.max(WS_MIN, w)), setWsWidth, (w) => {
+    dragWidth(e, 'ws', Math.round(current), -1, (w) => Math.min(wsMax(), Math.max(WS_MIN, w)), setWsWidth, (w) => {
       try { localStorage.setItem(WS_KEY, String(w)); } catch {}
     });
   }
@@ -493,7 +493,7 @@ export default function ChatApp() {
 
   return (
     <>
-      <section class={`kali-ai${sidebarOpen ? ' sidebar-open' : ''}${resizing ? ' resizing' : ''}`}
+      <section class={`kali-ai${sidebarOpen ? ' sidebar-open' : ''}${resizing ? ` resizing resizing-${resizing}` : ''}`}
         style={{ '--kali-sidebar-w': `${sidebarWidth}px`, ...(wsWidth ? { '--kali-ws-w': `${wsWidth}px` } : {}) } as any}>
         <aside class="kali-ai-sidebar">
           <button class="kali-new" type="button" onClick={() => { newChat(); closeSidebarIfNarrow(); }}><Plus size={16} />New chat</button>

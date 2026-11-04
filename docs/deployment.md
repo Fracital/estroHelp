@@ -35,3 +35,9 @@ WantedBy=multi-user.target
 Rebuild (`make build`), replace the binary and `frontend/dist`, restart. Schema changes are additive and applied on start.
 
 See also: [Architecture](architecture.md).
+
+## Continuous deployment
+
+`.github/workflows/ci.yml` runs `go vet`, `go test`, `astro check` and a build on every push and pull request. Pushes to `master` that pass then run a deploy job on a self-hosted runner that lives on the production host (label `chat`). The runner builds the checkout there and calls `sudo /usr/local/sbin/estro-deploy`, a small root gate that copies the binary, `frontend/dist` and `ext/` into `/opt/elichat`, installs the unit and nginx site from `deploy/`, restarts the service and checks `/api/health`. The host needs no inbound access and the workflow needs no secrets; the runner only makes outbound calls to GitHub.
+
+Install the runner once with `scripts/runner-install.sh <registration-token>` as root on the host (the token comes from the repository's Actions settings). `scripts/deploy.sh` remains for a manual push from a workstation.

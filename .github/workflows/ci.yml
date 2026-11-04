@@ -1,0 +1,71 @@
+# CI and deploy.
+#   check   - every push and pull request: go vet/test, astro check, build (GitHub-hosted).
+#   deploy  - pushes to master after check passes: builds on the self-hosted runner that
+#             lives on the production host (`chat`, label "chat") and hands the artifacts
+#             to /usr/local/sbin/estro-deploy, a root gate installed by scripts/runner-install.sh.
+#             The host is not reachable from the internet, so nothing SSHes in and the
+#             workflow needs no secrets; the runner only makes outbound calls to GitHub.
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Go vet and tests
+        run: |
+          go vet ./...
+          go test ./...
+      - name: Frontend check and build
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npx astro check
+          npm run build
+      - name: Build binary
+        run: CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o build/elichat ./cmd/elichat
+
+  deploy:
+    name: Deploy to chat
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: [self-hosted, linux, chat]
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build
+        run: |
+          CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o build/elichat ./cmd/elichat
+          cd frontend && npm ci --no-audit --no-fund && npm run build
+      - name: Ship and restart
+        run: sudo /usr/local/sbin/estro-deploy "$GITHUB_WORKSPACE" "$GITHUB_SHA"

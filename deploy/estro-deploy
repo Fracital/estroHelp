@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Root-side deploy gate, run by the self-hosted GitHub runner through sudo:
+#   sudo /usr/local/sbin/estro-deploy <workspace> [sha]
+# It only accepts a checkout under the runner's work directory, copies the built
+# artifacts into /opt/elichat, and restarts the service. Secrets (.env,
+# zai_config.json) are never touched.
+set -euo pipefail
+WS="${1:?workspace}"; SHA="${2:-unknown}"
+DEST=/opt/elichat
+case "$(readlink -f "$WS")" in /opt/actions-runner/_work/*) ;; *) echo "refusing workspace outside the runner: $WS" >&2; exit 2 ;; esac
+for f in build/elichat frontend/dist/index.html ext/zai_browser.py deploy/elichat.service deploy/nginx-estro.help.conf; do
+  [ -e "$WS/$f" ] || { echo "missing $f in workspace" >&2; exit 2; }
+done
+
+install -d -m 755 "$DEST/frontend" "$DEST/ext"
+rsync -a --delete "$WS/frontend/dist/" "$DEST/frontend/dist/"
+rsync -a --delete "$WS/ext/" "$DEST/ext/"
+install -m 755 "$WS/build/elichat" "$DEST/elichat.new"
+mv -f "$DEST/elichat.new" "$DEST/elichat"
+install -m 644 "$WS/deploy/elichat.service" /etc/systemd/system/elichat.service
+install -m 644 "$WS/deploy/nginx-estro.help.conf" /etc/nginx/sites-enabled/estro.help.conf
+echo "$SHA" > "$DEST/DEPLOYED"
+
+systemctl daemon-reload
+systemctl enable --quiet elichat
+systemctl restart elichat
+if nginx -t >/dev/null 2>&1; then systemctl reload nginx; else echo "nginx config test failed; not reloaded" >&2; fi
+for i in $(seq 1 20); do
+  if curl -sf http://127.0.0.1:3000/api/health >/dev/null; then echo "deployed $SHA: healthy"; exit 0; fi
+  sleep 1
+done
+echo "service did not become healthy" >&2
+journalctl -u elichat --no-pager -n 30 >&2
+exit 1

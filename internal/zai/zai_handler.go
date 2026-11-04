@@ -74,7 +74,7 @@ type zaiRequest struct {
 	model    string
 	prompt   string
 	thinking bool
-	// effort is the client's reasoning level (low, medium, high) or "" for the default.
+	// effort is the client's reasoning level (z.ai's ladder: low, high, max) or "" for the default.
 	effort string
 	stream bool
 	tools  map[string]bool // declared tool names, for the parser
@@ -83,7 +83,7 @@ type zaiRequest struct {
 // zaiEffort keeps a client reasoning level the upstream understands.
 func zaiEffort(effort string) string {
 	switch strings.ToLower(strings.TrimSpace(effort)) {
-	case "low", "medium", "high":
+	case "low", "high", "max":
 		return strings.ToLower(strings.TrimSpace(effort))
 	}
 	return ""

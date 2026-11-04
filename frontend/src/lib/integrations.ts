@@ -22,7 +22,7 @@ export interface ModelRow {
 export const MODELS: ModelRow[] = [
   { id: 'kali-gamma', name: 'Kali Gamma', short: 'Deep reasoning for complex work', context_window: 1048576, max_output: 131072, tool_use: true, vision: true, reasoning: true, levels: ['low', 'high', 'max'] },
   { id: 'kali-beta', name: 'Kali Beta', short: 'Balanced, long context', context_window: 262144, max_output: 262144, tool_use: true, vision: true, reasoning: true, levels: ['low', 'high', 'max'] },
-  { id: 'kali-epsilon', name: 'Kali Epsilon', short: 'Fast answers', context_window: 1048576, max_output: 131072, tool_use: true, vision: true, reasoning: true, levels: ['low', 'medium', 'high'] },
+  { id: 'kali-epsilon', name: 'Kali Epsilon', short: 'Fast answers', context_window: 1048576, max_output: 128000, tool_use: true, vision: false, reasoning: true, levels: ['low', 'high', 'max'] },
 ];
 
 export interface IntegrationConfig { title: string; language: string; code: string }

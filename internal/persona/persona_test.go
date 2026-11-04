@@ -102,9 +102,10 @@ func TestThinkingFor(t *testing.T) {
 		{gamma, "high", "high", true},
 		{gamma, "medium", "", false},
 		{gamma, "off", "none", true},
-		{eps, "medium", "medium", true},
-		{eps, "max", "", false},
-		{eps, "none", "none", true},
+		// z.ai's ladder is low/high/max and GLM-5.3 cannot skip thinking.
+		{eps, "medium", "", false},
+		{eps, "max", "max", true},
+		{eps, "none", "", false},
 	}
 	for _, c := range cases {
 		got, ok := c.p.ThinkingFor(c.in)

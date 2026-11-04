@@ -721,7 +721,7 @@ func zaiEffortFor(enableThinking bool, effort string) string {
 		return effort
 	}
 	if enableThinking {
-		return zaiEnvOr("ZAI_REASONING_EFFORT", "medium")
+		return zaiEnvOr("ZAI_REASONING_EFFORT", "high")
 	}
 	return zaiEnvOr("ZAI_REASONING_EFFORT_OFF", "low")
 }

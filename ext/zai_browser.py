@@ -348,7 +348,7 @@ class ZaiBrowser:
             # The client's level wins when thinking is on; otherwise the configured defaults.
             effort = self._pending.get("reasoning_effort")
             if thinking:
-                feats["reasoning_effort"] = effort or os.environ.get("ZAI_REASONING_EFFORT", "medium")
+                feats["reasoning_effort"] = effort or os.environ.get("ZAI_REASONING_EFFORT", "high")
             else:
                 feats["reasoning_effort"] = os.environ.get("ZAI_REASONING_EFFORT_OFF", "low")
             body["features"] = feats

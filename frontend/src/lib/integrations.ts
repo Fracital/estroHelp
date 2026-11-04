@@ -71,7 +71,7 @@ const anthropicPanel = (title: string) => ({ title, language: 'text', code: `bas
 export const INTEGRATIONS: Integration[] = [
   { id: 'opencode', label: 'opencode', icon: 'opencode', description: 'Adds Estro as an OpenAI-compatible provider in opencode.json.',
     configs: [{ title: '~/.config/opencode/opencode.json', language: 'json', code: opencodeProvider }] },
-  { id: 'continue', label: 'continue.dev', icon: 'continue', description: 'The YAML file is the current schema. VS Code and JetBrains read the same file.',
+  { id: 'continue', label: 'continue', icon: 'continue', description: 'The YAML file is the current schema. VS Code and JetBrains read the same file.',
     configs: [{ title: '~/.continue/config.yaml', language: 'yaml', code: continueYaml }] },
   { id: 'vscode', label: 'vs code', icon: 'vscode', description: 'Native BYOK through Chat: Manage Language Models. No extension and no GitHub sign-in needed.',
     configs: [
@@ -89,11 +89,11 @@ export const INTEGRATIONS: Integration[] = [
     configs: [{ title: 'Settings → Cascade → Model providers → OpenAI compatible', language: 'text', code: `base url:  ${BASE_URL}\napi key:   ${KEY}\nmodel:     ${first}` }] },
   { id: 'cline', label: 'cline', icon: 'cline', description: 'Anthropic provider with a custom base URL. The IDE, CLI and SDK share ~/.cline/data/settings/providers.json.',
     configs: [anthropicPanel('Settings → API Provider → Anthropic, then tick Use custom base URL'), { title: 'Models: add each model as its own entry', language: 'text', code: idList }] },
-  { id: 'roo', label: 'roo code', icon: 'roo', description: 'Roo Code and its community fork Zoo Code take the same settings.',
+  { id: 'roo', label: 'roo', icon: 'roo', description: 'Roo Code and its community fork Zoo Code take the same settings.',
     configs: [anthropicPanel('Settings → Providers → Anthropic, then tick Use custom base URL'), { title: 'Model configuration: add each model', language: 'text', code: idList }] },
-  { id: 'kilo', label: 'kilo code', icon: 'kilo', description: 'Global config at ~/.config/kilo/kilo.jsonc, read by the CLI, VS Code and JetBrains. Keep the key there, not in a committed project file.',
+  { id: 'kilo', label: 'kilo', icon: 'kilo', description: 'Global config at ~/.config/kilo/kilo.jsonc, read by the CLI, VS Code and JetBrains. Keep the key there, not in a committed project file.',
     configs: [{ title: '~/.config/kilo/kilo.jsonc', language: 'json', code: kiloConfig }] },
-  { id: 'claudecode', label: 'claude code', icon: 'claudecode', description: 'Anthropic-compatible endpoint. Claude Code adds /v1/messages itself, so use the bare host. ANTHROPIC_API_KEY works in place of ANTHROPIC_AUTH_TOKEN.',
+  { id: 'claudecode', label: 'claude', icon: 'claudecode', description: 'Anthropic-compatible endpoint. Claude Code adds /v1/messages itself, so use the bare host. ANTHROPIC_API_KEY works in place of ANTHROPIC_AUTH_TOKEN.',
     configs: [
       { title: 'Shell', language: 'bash', code: `export ANTHROPIC_BASE_URL=${BASE_HOST}\nexport ANTHROPIC_AUTH_TOKEN="$${KEY_ENV}"\nclaude --model ${first}` },
       { title: '~/.claude/settings.json (applies however claude is launched)', language: 'json', code: `{\n  "env": {\n    "ANTHROPIC_BASE_URL": "${BASE_HOST}",\n    "ANTHROPIC_AUTH_TOKEN": "${KEY}"\n  },\n  "model": "${first}"\n}` },

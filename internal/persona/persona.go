@@ -26,6 +26,7 @@ type Persona struct {
 	BaseModel   string  `json:"base_model"`
 	Provider    string  `json:"provider"`
 	Description string  `json:"description"`
+	Short       string  `json:"short"`
 	System      string  `json:"-"`
 	Primer      *Primer `json:"-"`
 }

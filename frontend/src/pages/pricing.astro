@@ -1,0 +1,9 @@
+---
+import Shell from '../layouts/Shell.astro';
+import PricingPage from '../components/PricingPage';
+---
+<Shell title="Pricing" description="Estro plans and usage: Kali Gamma, Beta and Epsilon on one subscription." active="pricing">
+  <PricingPage client:only="preact">
+    <div slot="fallback" class="kali-view-loading">Loading plans</div>
+  </PricingPage>
+</Shell>

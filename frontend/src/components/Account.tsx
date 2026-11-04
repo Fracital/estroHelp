@@ -5,6 +5,8 @@ import { readShellKey, writeShellKey } from '../lib/run';
 import { api } from '../lib/api';
 import { authReady, loadMe, logout, user, requireVerifiedEmail, type User as KaliUser } from '../lib/auth';
 import { load } from '../lib/preferences';
+import { fetchPlanMe, formatResetsIn, openPortal, planStatusLine, type Meter, type PlanMe } from '../lib/billing';
+import { formatShekels, planName } from '../lib/plans';
 import AuthGate, { LegalFooter } from './AuthGate';
 import SecurityPasskeys from './SecurityPasskeys';
 import SecurityTotp from './SecurityTotp';
@@ -61,13 +63,88 @@ export default function Account() {
   );
 }
 
+function UsageMeter({ label, meter, now }: { label: string; meter: Meter; now: number }) {
+  const left = Math.max(0, meter.cap - meter.used);
+  return (
+    <div class="settings-row settings-row-stack">
+      <div class="account-meter-head">
+        <strong>{label}</strong>
+        <small>{formatShekels(left)} left · resets {formatResetsIn(meter.resetsAt, now)}</small>
+      </div>
+      <div class="account-meter"><div style={{ width: `${Math.min(100, (meter.used / Math.max(1, meter.cap)) * 100)}%` }} /></div>
+      <small>{formatShekels(meter.used)} of {formatShekels(meter.cap)} used</small>
+    </div>
+  );
+}
+
+/** Plan & usage: the plan line, the two windows (or the free daily pool), and billing. */
+function PlanSection({ user: u, usage, planMe }: { user: KaliUser; usage: Usage | null; planMe: PlanMe | null }) {
+  const [billingError, setBillingError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  const plan = planMe?.plan ?? null;
+  const openBilling = async () => {
+    setBusy(true); setBillingError('');
+    const r = await openPortal();
+    if (!r.ok) { setBillingError(r.error); setBusy(false); return; }
+    location.assign(r.url);
+  };
+  const requests = usage ? `${usage.requestsToday} request${usage.requestsToday === 1 ? '' : 's'} today` : '';
+  return (
+    <Section id="acc-plan" icon={<Zap size={16} />} title="Plan & usage">
+      <div class="settings-row">
+        <span><strong>Plan</strong><small>{planMe ? (u.admin ? `Admin: unlimited usage. ${planStatusLine(plan)}` : planStatusLine(plan)) : 'Loading…'}</small></span>
+        <div class="settings-row-actions"><a class="settings-action primary" href="/pricing">{plan ? 'Change plan' : 'Upgrade'}</a></div>
+      </div>
+      {planMe?.admin && !planMe.usage && (
+        <div class="settings-row settings-row-stack">
+          <div class="account-meter-head"><strong>AI usage</strong><small>Unlimited (admin)</small></div>
+          <div class="account-meter"><div style={{ width: '0%' }} /></div>
+          <small>{requests || 'No cap on this account.'}</small>
+        </div>
+      )}
+      {planMe?.usage && (
+        <>
+          <UsageMeter label="5-hour window" meter={planMe.usage.fiveHour} now={now} />
+          <UsageMeter label="Weekly window" meter={planMe.usage.weekly} now={now} />
+        </>
+      )}
+      {planMe && !planMe.usage && planMe.free && !planMe.admin && (
+        <div class="settings-row settings-row-stack">
+          <div class="account-meter-head">
+            <strong>Free pool today</strong>
+            <small>{formatShekels(Math.max(0, planMe.free.cap - planMe.free.used))} left · resets {formatResetsIn(planMe.free.resetsAt, now)}</small>
+          </div>
+          <div class="account-meter"><div style={{ width: `${Math.min(100, (planMe.free.used / Math.max(1, planMe.free.cap)) * 100)}%` }} /></div>
+          <small>{formatShekels(planMe.free.used)} of {formatShekels(planMe.free.cap)} used on Kali Epsilon{requests ? ` · ${requests}` : ''}</small>
+        </div>
+      )}
+      <div class="settings-row">
+        <span><strong>Billing</strong><small>{plan?.managed ? 'Payment method, invoices and cancellation.' : plan ? 'This plan was granted; there is nothing to bill.' : 'No active subscription.'}</small></span>
+        <div class="settings-row-actions">
+          {plan?.managed
+            ? <button class="settings-action" type="button" disabled={busy} onClick={() => void openBilling()}>Manage billing</button>
+            : <a class="settings-action" href="/pricing">See plans</a>}
+        </div>
+        {billingError && <p class="account-status err">{billingError}</p>}
+      </div>
+    </Section>
+  );
+}
+
 function Dashboard({ user: u }: { user: KaliUser }) {
   const [usage, setUsage] = useState<Usage | null>(null);
+  const [planMe, setPlanMe] = useState<PlanMe | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const refresh = () => loadMe(true);
   const reloadSessions = () => api<{ sessions: Session[] }>('/api/account/sessions').then((d) => setSessions(d.sessions)).catch(() => {});
   useEffect(() => {
     api<Usage>('/api/usage').then(setUsage).catch(() => {});
+    fetchPlanMe().then(setPlanMe);
     reloadSessions();
   }, []);
 
@@ -79,7 +156,7 @@ function Dashboard({ user: u }: { user: KaliUser }) {
           <h1>Estro account{u.admin && <span class="account-badge warn" style={{ marginLeft: 10 }}>Admin</span>}{u.sandbox && <span class="account-badge" style={{ marginLeft: 6 }}>Sandbox</span>}</h1>
           <p>
             <span class="account-meta-name">{u.username}</span>
-            <span class="account-plan-badge">{u.admin || u.sandbox ? 'Unlimited' : 'Free'}</span>
+            <span class="account-plan-badge">{u.admin ? 'Unlimited' : planMe ? planName(planMe.plan?.id) : ''}</span>
             <span>member since {new Date(u.created).toLocaleDateString()}</span>
           </p>
         </div>
@@ -92,20 +169,7 @@ function Dashboard({ user: u }: { user: KaliUser }) {
 
       <ProfileSection user={u} onChanged={refresh} />
 
-      <Section id="acc-plan" icon={<Zap size={16} />} title="Plan & usage">
-        <div class="settings-row">
-          <span><strong>Plan</strong><small>{u.admin ? 'Admin: no daily limit.' : u.sandbox ? 'Sandbox account: usage is tracked but never capped.' : 'Free: every model, with a daily request cap.'}</small></span>
-          <div class="settings-row-actions"><a class="settings-action primary" href="/docs">API docs</a></div>
-        </div>
-        <div class="settings-row settings-row-stack">
-          <div class="account-meter-head">
-            <strong>AI usage today</strong>
-            <small>{usage ? (usage.dailyLimit ? `${Math.max(0, usage.dailyLimit - usage.requestsToday)} left` : 'Unlimited') : ''}</small>
-          </div>
-          <div class="account-meter"><div style={{ width: `${usage && usage.dailyLimit ? Math.min(100, (usage.requestsToday / usage.dailyLimit) * 100) : 0}%` }} /></div>
-          <small>{usage ? (usage.dailyLimit ? `${usage.requestsToday} of ${usage.dailyLimit} requests used` : `${usage.requestsToday} requests today, no limit`) : 'Loading…'}</small>
-        </div>
-      </Section>
+      <PlanSection user={u} usage={usage} planMe={planMe} />
 
       <ApiKeysSection />
 

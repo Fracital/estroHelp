@@ -138,3 +138,81 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_backup_codes TEXT[] NOT NULL DEFAULT '{}';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_pending_secret TEXT;
+
+-- Billing. users.plan / plan_until is the entitlement the relay reads; a plan is
+-- active while plan_until is in the future. The sandbox Stripe customer is kept
+-- apart from the live one.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_until TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_stripe_customer_id TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_stripe_sandbox_customer_id TEXT;
+CREATE INDEX IF NOT EXISTS users_plan_stripe_customer_idx ON users (plan_stripe_customer_id) WHERE plan_stripe_customer_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS users_plan_stripe_sandbox_customer_idx ON users (plan_stripe_sandbox_customer_id) WHERE plan_stripe_sandbox_customer_id IS NOT NULL;
+
+-- Written by the Stripe webhook on invoice.paid (source='stripe') and by admin
+-- grants (source='grant'). Revenue reports read source='stripe'.
+CREATE TABLE IF NOT EXISTS payment (
+    invoice_id TEXT PRIMARY KEY,
+    subscription_id TEXT,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tier TEXT NOT NULL,
+    period_start TIMESTAMPTZ,
+    period_end TIMESTAMPTZ,
+    stripe_renew BOOLEAN NOT NULL DEFAULT TRUE,
+    amount_cents INT,
+    currency TEXT NOT NULL DEFAULT 'usd',
+    source TEXT NOT NULL DEFAULT 'stripe',
+    actor TEXT,
+    created TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS payment_user_idx ON payment(user_id);
+
+-- Each Stripe event id is recorded once, so webhook retries are no-ops.
+CREATE TABLE IF NOT EXISTS billing_event (
+    stripe_event_id TEXT PRIMARY KEY,
+    received TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Usage windows: fixed, not sliding. A window starts at its first recorded use
+-- and resets as a whole at window_start + length.
+CREATE TABLE IF NOT EXISTS usage_window (
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL CHECK (kind IN ('five_hour', 'weekly')),
+    window_start TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    used_units NUMERIC NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, kind)
+);
+
+-- One row per metered request, the audit trail for the window totals.
+CREATE TABLE IF NOT EXISTS usage_event (
+    id BIGSERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    model TEXT NOT NULL,
+    multiplier NUMERIC NOT NULL,
+    units NUMERIC NOT NULL,
+    input_tokens INT NOT NULL DEFAULT 0,
+    cached_tokens INT NOT NULL DEFAULT 0,
+    output_tokens INT NOT NULL DEFAULT 0,
+    created TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS usage_event_user_idx ON usage_event (user_id, created DESC);
+
+-- What the site shows and changes for a plan: the Stripe subscription behind it,
+-- its interval, a pending cancel and a pending downgrade (a Subscription
+-- Schedule). Stripe is the source; the billing routes and the webhook refresh it.
+CREATE TABLE IF NOT EXISTS estro_subscription (
+    user_id INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    mode TEXT NOT NULL CHECK (mode IN ('live', 'sandbox')),
+    subscription_id TEXT NOT NULL,
+    plan TEXT NOT NULL,
+    billing_interval TEXT NOT NULL CHECK (billing_interval IN ('monthly', 'annual')),
+    status TEXT NOT NULL,
+    period_end TIMESTAMPTZ NOT NULL,
+    cancel_at TIMESTAMPTZ,
+    schedule_id TEXT,
+    next_plan TEXT,
+    next_billing_interval TEXT,
+    next_at TIMESTAMPTZ,
+    updated TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS estro_subscription_sub_idx ON estro_subscription (subscription_id);

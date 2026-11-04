@@ -65,5 +65,6 @@ docs/                 this documentation
 - [Configuration](docs/configuration.md): every environment variable.
 - [Deployment](docs/deployment.md): production checklist.
 - [Frontend](docs/frontend.md): the Astro site and the chat app.
-- [Admin](docs/admin.md): roles, bans, keys and caps.
+- [Admin](docs/admin.md): roles, plans, bans, keys and caps.
+- [Billing](docs/billing.md): plans, units, windows and Stripe.
 - [Development](docs/development.md): tests, checks and gotchas.

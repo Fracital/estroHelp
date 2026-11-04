@@ -28,9 +28,11 @@ func (a *Admin) Register(mux *http.ServeMux) {
 
 type adminUser struct {
 	User
-	Banned        *Ban `json:"ban"`
-	RequestsToday int  `json:"requestsToday"`
-	Threads       int  `json:"threads"`
+	Banned        *Ban       `json:"ban"`
+	RequestsToday int        `json:"requestsToday"`
+	Threads       int        `json:"threads"`
+	Plan          *string    `json:"plan"`
+	PlanUntil     *time.Time `json:"planUntil"`
 }
 
 func pageParam(r *http.Request) (int, int) {
@@ -69,7 +71,8 @@ func (a *Admin) listUsers(w http.ResponseWriter, r *http.Request) {
 		SELECT u.`+userCols+`,
 		  (SELECT coalesce(sum(requests),0) FROM ai_usage WHERE user_id=u.id AND day=CURRENT_DATE),
 		  (SELECT count(*) FROM thread WHERE user_id=u.id),
-		  b.reason, b.expires
+		  b.reason, b.expires,
+		  CASE WHEN u.plan_until > NOW() THEN u.plan END, u.plan_until
 		FROM users u
 		LEFT JOIN LATERAL (SELECT reason, expires FROM ban WHERE user_id=u.id AND lifted IS NULL AND (expires IS NULL OR expires > NOW()) ORDER BY created DESC LIMIT 1) b ON TRUE
 		WHERE u.username ILIKE $1 OR u.email ILIKE $1
@@ -85,7 +88,7 @@ func (a *Admin) listUsers(w http.ResponseWriter, r *http.Request) {
 		var reason *string
 		var expires *time.Time
 		if err := rows.Scan(&au.ID, &au.Username, &au.Email, &au.EmailVerified, &au.Admin, &au.Sandbox, &au.Created, &au.LastLogin, &au.TotpEnabled,
-			&au.RequestsToday, &au.Threads, &reason, &expires); err != nil {
+			&au.RequestsToday, &au.Threads, &reason, &expires, &au.Plan, &au.PlanUntil); err != nil {
 			WriteError(w, 500, err.Error())
 			return
 		}

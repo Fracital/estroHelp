@@ -21,6 +21,15 @@ export interface SessionState {
   busy: boolean;
   toolRuns: Record<string, ToolRun>;
   error: string;
+  /** A link shown beside the error, e.g. to pricing when a plan or window is the reason. */
+  errorAction: { href: string; label: string } | null;
+}
+
+/** True when the request was refused for billing reasons: no plan, or a usage window that is full. */
+function isBillingRefusal(e: ApiError): boolean {
+  if (e.code === 'billing_error') return true;
+  const t = e.data?.error?.type;
+  return e.status === 429 && t === 'usage_limit_reached';
 }
 
 export interface SessionHooks {
@@ -52,7 +61,7 @@ export class ThreadSession {
   private sending = false;
 
   constructor(private hooks: SessionHooks, model = '') {
-    this.state = { threadId: null, model, messages: [], live: null, busy: false, toolRuns: {}, error: '' };
+    this.state = { threadId: null, model, messages: [], live: null, busy: false, toolRuns: {}, error: '', errorAction: null };
   }
 
   subscribe(fn: () => void): () => void {
@@ -65,7 +74,7 @@ export class ThreadSession {
     for (const fn of this.listeners) fn();
   }
 
-  setError(error: string) { this.set({ error }); }
+  setError(error: string) { this.set({ error, errorAction: null }); }
   setModel(model: string) { this.set({ model }); }
 
   reset() {
@@ -220,7 +229,12 @@ export class ThreadSession {
         this.set({ live: null });
         if (failure) {
           const ae = failure as ApiError;
-          this.set({ error: ae.code === 'email_unverified' ? 'Verify your email to keep chatting.' : ae.message });
+          const billing = ae instanceof ApiError && isBillingRefusal(ae);
+          this.set({
+            error: ae.code === 'email_unverified' ? 'Verify your email to keep chatting.' : ae.message,
+            errorAction: billing ? { href: '/pricing', label: ae.status === 429 ? 'Upgrade' : 'See plans' } : null,
+          });
+          this.hooks.onUsage?.();
           break;
         }
         if (aborted || !calls.length) break;

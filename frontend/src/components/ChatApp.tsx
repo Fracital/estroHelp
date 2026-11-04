@@ -3,6 +3,8 @@ import { createPortal } from 'preact/compat';
 import { Files, Gauge, KeyRound, MessageSquare, Monitor, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Search, Sparkles, SquareArrowDownLeft, SquareArrowOutUpRight, SquareTerminal, Syringe, Trash2, X } from 'lucide-preact';
 import { api, ApiError } from '../lib/api';
 import { gate, user } from '../lib/auth';
+import { fetchPlanMe, formatResetsIn, type Meter, type PlanMe } from '../lib/billing';
+import { formatShekels } from '../lib/plans';
 import { localizeSample, readRunParam, readShellKey, toShellLine, writeShellKey, type RunLang } from '../lib/run';
 import { ThreadSession, useSession, type Thread } from '../lib/thread-session';
 import { WORKSPACE_ROOT, listShells, onShellsChanged, openShellSession, writeText } from './workspace/dusk';
@@ -134,6 +136,7 @@ export default function ChatApp() {
   const [toolsOff, setToolsOff] = useState<Record<string, boolean>>({});
   const [toolsSupported, setToolsSupported] = useState(false);
   const [usage, setUsage] = useState<Usage>({ requestsToday: 0, dailyLimit: 0 });
+  const [planMe, setPlanMe] = useState<PlanMe | null>(null);
   const [popouts, setPopouts] = useState<PopoutSession[]>([]);
   const popoutsRef = useRef<PopoutSession[]>([]);
   popoutsRef.current = popouts;
@@ -149,7 +152,10 @@ export default function ChatApp() {
   enabledTools.current = () => (toolsSupported ? tools.filter((t) => toolOn(toolsOff, t.function.name)) : []);
 
   const upsertThread = (t: Thread) => setThreads((ts) => [t, ...ts.filter((x) => x.id !== t.id)]);
-  const refreshUsage = () => api<Usage>('/api/usage').then(setUsage).catch(() => {});
+  const refreshUsage = () => {
+    api<Usage>('/api/usage').then(setUsage).catch(() => {});
+    fetchPlanMe().then((p) => { if (p) setPlanMe(p); });
+  };
   const hooks = useRef({ tools: () => enabledTools.current(), onThread: upsertThread, onUsage: refreshUsage });
 
   const main = useMemo(() => new ThreadSession({
@@ -157,19 +163,22 @@ export default function ChatApp() {
     onThreadCreated: (t) => { upsertThread(t); history.replaceState(null, '', `#${t.id}`); },
   }), []);
   const ms = useSession(main);
-  const { threadId: activeId, messages, live, busy, toolRuns, error, model } = ms;
+  const { threadId: activeId, messages, live, busy, toolRuns, error, errorAction, model } = ms;
 
   const modelName = (id?: string | null) => models.find((m) => m.id === id)?.name ?? id ?? 'Estro';
 
   useEffect(() => {
     gate('chat').then(async (ok) => {
       if (!ok) return;
-      const [m, t] = await Promise.all([api<{ models: MenuModel[] }>('/api/models'), api<{ threads: Thread[] }>('/api/threads')]);
+      const [m, t, p] = await Promise.all([api<{ models: MenuModel[] }>('/api/models'), api<{ threads: Thread[] }>('/api/threads'), fetchPlanMe()]);
       setModels(m.models);
       setThreads(t.threads);
+      if (p) setPlanMe(p);
+      const entitled = Boolean(p?.admin || p?.plan);
+      const usable = (x: MenuModel) => x.available && (entitled || !x.requiresPlan);
       const saved = localStorage.getItem(MODEL_KEY);
-      const first = m.models.find((x) => x.available)?.id ?? m.models[0]?.id ?? '';
-      main.setModel(m.models.some((x) => x.id === saved && x.available) ? saved! : first);
+      const first = m.models.find(usable)?.id ?? m.models[0]?.id ?? '';
+      main.setModel(m.models.some((x) => x.id === saved && usable(x)) ? saved! : first);
       const supported = workspace.isSupported();
       setToolsSupported(supported);
       setTools(workspace.tools());
@@ -424,7 +433,16 @@ export default function ChatApp() {
   const u = user.value!;
   const empty = messages.length === 0 && !live;
   const remaining = usage.dailyLimit ? Math.max(0, usage.dailyLimit - usage.requestsToday) : 0;
-  const quotaLine = usage.dailyLimit ? `${remaining}/${usage.dailyLimit}` : 'Unlimited';
+  // Plan windows (or the free daily pool) drive the quota line. Admins are unlimited.
+  const hasPlan = Boolean(planMe?.admin || planMe?.plan);
+  const meters: Meter[] = planMe?.admin ? [] : planMe?.usage ? [planMe.usage.fiveHour, planMe.usage.weekly] : planMe?.free ? [planMe.free] : [];
+  const fullMeter = meters.find((m) => m.used >= m.cap) ?? null;
+  const shownMeter = meters.length ? meters.reduce((a, b) => (a.cap - a.used <= b.cap - b.used ? a : b)) : null;
+  const quotaLine = !planMe || planMe.admin ? 'Unlimited' : shownMeter ? `${formatShekels(Math.max(0, shownMeter.cap - shownMeter.used))}/${formatShekels(shownMeter.cap)}` : 'Unlimited';
+  const quotaScope = planMe?.usage ? 'left in this window' : 'left today';
+  const planLabel = planMe?.admin ? 'Admin' : planMe?.plan?.name ?? 'Free';
+  const limitReached = (usage.dailyLimit > 0 && remaining <= 0) || Boolean(fullMeter);
+  const limitText = fullMeter ? `Limit reached. Resets in ${formatResetsIn(fullMeter.resetsAt)}` : 'Daily limit reached';
   const workspaceTitle = toolsSupported ? undefined : 'Workspace needs a browser with cross-origin isolation (SharedArrayBuffer) and OPFS';
   const activeSummary = threads.find((t) => t.id === activeId);
   const title = threadTitle(activeSummary, messages);
@@ -436,10 +454,10 @@ export default function ChatApp() {
   const lastAssistantSeq = [...messages].reverse().find((m) => m.role === 'assistant')?.seq;
 
   const composer = (variant: 'hero' | 'docked') => (
-    <Composer variant={variant} placeholder={usage.dailyLimit && remaining <= 0 ? 'Daily limit reached' : 'Ask anything'}
-      busy={busy} disabled={!model || (usage.dailyLimit > 0 && remaining <= 0)} inputRef={textRef} seed={seed}
+    <Composer variant={variant} placeholder={limitReached ? limitText : 'Ask anything'}
+      busy={busy} disabled={!model || limitReached} inputRef={textRef} seed={seed}
       onSend={send} onStop={() => main.stop()} onNotice={(t) => main.setError(t)} onOpenImage={(files, index) => setLightbox({ files, index })}
-      models={models} model={model} onModelChange={changeModel}
+      models={models} model={model} hasPlan={hasPlan} onModelChange={changeModel}
       tools={tools} toolsSupported={toolsSupported} toolsOff={toolsOff} onToolsChange={changeTools} />
   );
 
@@ -490,7 +508,7 @@ export default function ChatApp() {
             {visible.length === 0 && q !== '' && <p class="kali-chat-none">No chats match your search</p>}
           </div>
           <footer>
-            <span class="kali-footer-usage"><span>{quotaLine} left today</span></span>
+            <span class="kali-footer-usage"><span>{quotaLine === 'Unlimited' ? 'Unlimited' : `${quotaLine} ${quotaScope}`}</span></span>
             <a class="kali-cs-toggle kali-cs-footer-toggle" href="/account"><Gauge size={13} />View usage</a>
             <a class="kali-cs-toggle kali-cs-footer-toggle" href="/account#acc-keys"><KeyRound size={13} />API keys</a>
           </footer>
@@ -508,14 +526,14 @@ export default function ChatApp() {
               {!empty && (
                 <div class="kali-ai-title">
                   <strong>{title}</strong>
-                  <small>{modelName(model)} · {quotaLine} left today</small>
+                  <small>{modelName(model)} · {planLabel}{quotaLine === 'Unlimited' ? '' : ` · ${quotaLine} ${quotaScope}`}</small>
                 </div>
               )}
             </div>
             <div class="kali-header-tools">
               <IconButton class="kali-share-btn" label={workspaceTitle ?? 'Files'} disabled={!toolsSupported} onClick={() => setPane('files')}><Files size={15} /></IconButton>
               <IconButton class="kali-share-btn" label={workspaceTitle ?? 'Terminal'} disabled={!toolsSupported} onClick={() => setPane('shell')}><SquareTerminal size={15} /></IconButton>
-              <a class="kali-plan-badge free" href="/account" title="Account"><Sparkles size={13} /> {u.username}</a>
+              <a class={`kali-plan-badge ${hasPlan ? 'paid' : 'free'}`} href={hasPlan ? '/account#acc-plan' : '/pricing'} title={hasPlan ? 'Plan and usage' : 'See plans'}><Sparkles size={13} /> {planLabel}</a>
               {activePopout
                 ? <IconButton class="kali-share-btn active" label="Bring this chat back into the window" onClick={() => dock(activePopout)}><SquareArrowDownLeft size={15} /></IconButton>
                 : <IconButton class="kali-share-btn" label="Open this chat in its own window" disabled={busy} onClick={() => openPopout(activeId)}><SquareArrowOutUpRight size={15} /></IconButton>}
@@ -548,6 +566,7 @@ export default function ChatApp() {
           {error && (
             <div class="kali-error" role="alert">
               <span class="kali-error-text">{error}</span>
+              {errorAction && <a class="kali-error-action" href={errorAction.href}>{errorAction.label}</a>}
               <button type="button" class="kali-error-close" title="Dismiss" aria-label="Dismiss error" onClick={() => main.setError('')}><X size={14} /></button>
             </div>
           )}

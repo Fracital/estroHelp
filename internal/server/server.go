@@ -12,6 +12,7 @@ import (
 
 	"elichat/internal/api"
 	"elichat/internal/auth"
+	"elichat/internal/billing"
 	"elichat/internal/wisp"
 )
 
@@ -20,6 +21,7 @@ type Deps struct {
 	Auth       *auth.Handlers
 	Admin      *auth.Admin
 	Chat       *api.Chat
+	Billing    *billing.Handlers
 	ExtHandler http.Handler
 	StaticDir  string
 	// SelfHosts are host:port pairs the sandbox relay may reach even though
@@ -34,6 +36,9 @@ func New(d Deps) http.Handler {
 	d.Auth.RegisterPasskeys(mux)
 	d.Auth.RegisterTOTP(mux)
 	d.Admin.Register(mux)
+	if d.Billing != nil {
+		d.Billing.Register(mux)
+	}
 	d.Chat.Register(mux)
 	d.Chat.RegisterThreads(mux)
 	d.Chat.RegisterDialects(mux)

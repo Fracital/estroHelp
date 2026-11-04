@@ -112,14 +112,40 @@ Error bodies follow the OpenAI shape, `{"error":{"message":"...","type":"...","c
 | 401 | none | Missing, expired or revoked credential |
 | 403 | `email_unverified` | Verify the account's email first |
 | 403 | `banned` | Account suspended |
+| 402 | `billing_error` | The account has no active plan (API access, or Kali Gamma and Kali Beta on the site) |
 | 404 | `model_not_found` | Unknown model id |
 | 429 | `rate_limit_exceeded` | Per-minute limit or daily cap reached; see `Retry-After` |
+| 429 | type `usage_limit_reached` | A plan window (or the free daily pool) is full; see `Retry-After` and `resets_in` |
 | 502 | none | The model provider is unavailable |
 | 503 | `model_unavailable` | That model is disabled on this deployment |
 
 ## Rate limits
 
 Model endpoints allow 120 requests a minute per account with a burst of 120, enough for agent loops that fire calls in sequence. Sign-in and password endpoints allow 10 a minute per IP. Over the limit you get `429` with `Retry-After`. The daily request cap is separate, shown by `GET /api/usage`, and resets at midnight UTC. Operators can change all of these; see [Configuration](configuration.md).
+
+## Plans and usage
+
+The API needs an active plan. Without one, every `/v1` call answers `402` with code `billing_error`; the site itself still offers Kali Epsilon within a free pool of ₪50,000 a day, and Kali Gamma and Kali Beta answer the same `402` there. Plans are on `/pricing`; the full model is in [Billing](billing.md).
+
+Each request costs `fresh input + cached input x 0.1 + output x 5` units, taken from the upstream's usage block, and counts against a 5-hour and a weekly window. When either is full you get `429` with an error of type `usage_limit_reached`:
+
+```json
+{"error":{"message":"Estro usage limit reached. 5h window: 1360000/1360000. Resets in 2h 14m.","type":"usage_limit_reached","window":"5h",
+  "used":1360000,"limit":1360000,"resets_in":8040,"resets_at":1762200000,"limit_window_minutes":300,"model_multiplier":1}}
+```
+
+(`/v1/messages` wraps it as `{"type":"error","error":{...}}`.) `Retry-After` is set, and so are `x-codex-rate-limit-reached-type` and `x-codex-promo-message`. Every successful reply carries the window state in headers:
+
+```
+x-codex-primary-used-percent: 42
+x-codex-primary-window-minutes: 300
+x-codex-primary-reset-at: 1762200000
+x-codex-secondary-used-percent: 12
+x-codex-secondary-window-minutes: 10080
+x-codex-secondary-reset-at: 1762700000
+```
+
+`GET /v1/usage` returns the same in the Codex `/wham/usage` shape (`plan_type`, `rate_limit.primary_window`, `rate_limit.secondary_window`), and `GET /api/account/plan/me` returns the plan, pending change, and the two meters for the signed-in session. `GET /api/models` marks models that need a plan with `requiresPlan: true` (`requires_plan` on `/v1/models`).
 
 ## IDE and tool setup
 

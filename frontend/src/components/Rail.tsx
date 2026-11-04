@@ -1,15 +1,16 @@
 import type { ComponentChildren } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
-import { BookOpen, CircleUser, Settings, Sparkles, Syringe } from 'lucide-preact';
+import { BookOpen, CircleUser, CreditCard, Settings, Sparkles, Syringe } from 'lucide-preact';
 import '../styles/shell.css';
 
-export type RailItem = 'home' | 'ai' | 'docs' | 'account' | 'settings' | 'admin' | 'none';
+export type RailItem = 'home' | 'ai' | 'docs' | 'pricing' | 'account' | 'settings' | 'admin' | 'none';
 
 export function railItemFor(pathname: string): RailItem {
   const p = pathname.replace(/\.html$/, '').replace(/\/+$/, '') || '/';
   if (p === '/') return 'home';
   if (p === '/chat') return 'ai';
   if (p === '/docs') return 'docs';
+  if (p === '/pricing') return 'pricing';
   if (p === '/account' || p === '/admin' || p === '/login' || p === '/register' || p === '/verify' || p === '/forgot') return 'account';
   if (p === '/settings') return 'settings';
   return 'none';
@@ -42,6 +43,7 @@ export default function Rail({ active: initial = 'none' }: { active?: RailItem }
         <RailLink href="/" label="Home" active={active === 'home'}><Syringe size={21} strokeWidth={1.7} aria-hidden="true" /></RailLink>
         <RailLink href="/chat" label="AI" active={active === 'ai'}><Sparkles size={21} strokeWidth={1.7} aria-hidden="true" /></RailLink>
         <RailLink href="/docs" label="Docs" active={active === 'docs'}><BookOpen size={21} strokeWidth={1.7} aria-hidden="true" /></RailLink>
+        <RailLink href="/pricing" label="Pricing" active={active === 'pricing'}><CreditCard size={21} strokeWidth={1.7} aria-hidden="true" /></RailLink>
       </div>
       <div class="kali-rail-bottom">
         <RailLink href="/account" label="Account" active={active === 'account' || active === 'admin'}><CircleUser size={21} strokeWidth={1.7} aria-hidden="true" /></RailLink>

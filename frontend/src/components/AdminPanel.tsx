@@ -1,20 +1,38 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { ArrowLeft, ChevronLeft, ChevronRight, FlaskConical, LogOut, MailCheck, RefreshCw, Search, ShieldCheck, UserCog, X } from 'lucide-preact';
+import { ArrowLeft, ChevronLeft, ChevronRight, FlaskConical, LogOut, MailCheck, RefreshCw, Search, ShieldCheck, Sparkles, UserCog, X } from 'lucide-preact';
 import { api } from '../lib/api';
 import { gate, user } from '../lib/auth';
 import type { User, Ban } from '../lib/auth';
 import { load } from '../lib/preferences';
+import { PLANS, formatShekels, formatUsd, planName } from '../lib/plans';
 import '../styles/account.css';
 import '../styles/admin.css';
 
-interface AdminUser extends User { ban: Ban | null; requestsToday: number; threads: number; }
+interface AdminUser extends User { ban: Ban | null; requestsToday: number; threads: number; plan: string | null; planUntil: string | null; }
 interface Stats { users: number; verified: number; sandbox: number; banned: number; requestsToday: number; requests7d: number; activeToday: number; threads: number; }
 interface UsageRow { day: string; model: string; requests: number; promptChars: number; users: number; }
 interface AuditEntry { id: number; actor: string; action: string; target: string | null; detail: string | null; created: string; }
-type Tab = 'overview' | 'users' | 'audit';
+interface BillingOverview { plans: { id: string; name: string; active: number }[]; requestsToday: number; unitsToday: number; accountsPaidFor: number; revenue30dCents: number; salesOpen: boolean; }
+interface Series { days: string[]; requests: number[]; units: number[]; activeUsers: number[]; signups: number[]; revenueCents: number[]; }
+interface RevenueBucket { period: string; tier: string; cents: number; count: number; }
+interface Revenue { monthly: RevenueBucket[]; daily: RevenueBucket[]; totalCents: number; transactions: number; }
+interface Transaction { id: string; username: string; tier: string; amountCents: number | null; currency: string; source: string; actor: string | null; periodEnd: string | null; created: string; }
+type Tab = 'overview' | 'users' | 'revenue' | 'audit';
 type NoticeState = { ok?: string; err?: string };
 
-const TABS: [Tab, string][] = [['overview', 'Overview'], ['users', 'Users'], ['audit', 'Audit']];
+const TABS: [Tab, string][] = [['overview', 'Overview'], ['users', 'Users'], ['revenue', 'Revenue'], ['audit', 'Audit']];
+const money = (c: number | null | undefined) => c == null ? '-' : `$${(c / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/** "Plus until 3 Dec 2026", "Ultra, no end date", "Pro expired 1 Nov 2026" or "none". */
+function planStatus(plan: string | null, until: string | null): { text: string; active: boolean } {
+  if (!plan) return { text: 'none', active: false };
+  const ends = until ? Date.parse(until) : Number.NaN;
+  if (Number.isFinite(ends) && ends > Date.now()) {
+    if (ends - Date.now() > 20 * 365.25 * 24 * 3600_000) return { text: `${planName(plan)}, no end date`, active: true };
+    return { text: `${planName(plan)} until ${new Date(until!).toLocaleDateString()}`, active: true };
+  }
+  return { text: `${planName(plan)} expired${until ? ` ${new Date(until).toLocaleDateString()}` : ''}`, active: false };
+}
 const fmt = (d: string) => new Date(d).toLocaleString();
 const day = (d: string) => new Date(d).toLocaleDateString();
 const errText = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
@@ -62,7 +80,7 @@ export default function AdminPanel() {
           <div class="admin-header-icon"><ShieldCheck size={22} /></div>
           <div>
             <h1>Admin Dashboard</h1>
-            <p>Manage users, bans, sandbox and admin flags, usage, and the audit trail.</p>
+            <p>Manage users, plans, bans, sandbox and admin flags, usage, revenue, and the audit trail.</p>
           </div>
         </div>
         <div class="admin-header-actions">
@@ -82,6 +100,7 @@ export default function AdminPanel() {
         <div role="tabpanel">
           {tab === 'overview' && <Overview key={tick} />}
           {tab === 'users' && <Users key={tick} onStatus={setStatus} />}
+          {tab === 'revenue' && <RevenueTab key={tick} />}
           {tab === 'audit' && <Audit key={tick} />}
         </div>
       </section>
@@ -89,11 +108,49 @@ export default function AdminPanel() {
   );
 }
 
+/** An area chart with a hover readout, one value per day. The same shape as the per-user sparkline. */
+function DailyChart({ title, labels, values, format = (v: number) => v.toLocaleString(), width = 300, height = 64 }: {
+  title: string; labels: string[]; values: number[]; format?: (v: number) => string; width?: number; height?: number;
+}) {
+  const [hover, setHover] = useState<number | null>(null);
+  const data = values.length ? values : [0];
+  const max = Math.max(1, ...data);
+  const stepX = width / Math.max(1, data.length - 1);
+  const y = (v: number) => height - (v / max) * (height - 6) - 3;
+  const points = data.map((v, i) => `${(i * stepX).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const total = data.reduce((s, v) => s + v, 0);
+  const labelFor = (i: number) => labels[i] ? new Date(labels[i] + 'T00:00:00Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }) : '';
+  return (
+    <div class="admin-chart">
+      <div class="admin-chart-head"><strong>{title}</strong><small>{format(total)} in {data.length} days</small></div>
+      <div class="spark-wrap" onMouseLeave={() => setHover(null)}
+        onMouseMove={(e) => {
+          const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+          if (!rect.width) return;
+          const i = Math.round(((e.clientX - rect.left) / rect.width) * (data.length - 1));
+          setHover(Math.max(0, Math.min(data.length - 1, i)));
+        }}>
+        <div class="spark-tip">{hover == null ? `Last ${data.length} days, per UTC day` : `${format(data[hover])} · ${labelFor(hover)}`}</div>
+        <svg class="sparkline" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
+          <polygon points={`0,${height} ${points} ${width},${height}`} />
+          <polyline points={points} vectorEffect="non-scaling-stroke" />
+          {hover != null && <circle class="spark-dot" cx={hover * stepX} cy={y(data[hover])} r={3} />}
+        </svg>
+      </div>
+      <div class="admin-chart-axis"><span>{labelFor(0)}</span><span>{labelFor(data.length - 1)}</span></div>
+    </div>
+  );
+}
+
 function Overview() {
   const [stats, setStats] = useState<Stats | null>(null);
+  const [billing, setBilling] = useState<BillingOverview | null>(null);
+  const [series, setSeries] = useState<Series | null>(null);
   const [usage, setUsage] = useState<UsageRow[]>([]);
   useEffect(() => {
     api<Stats>('/api/admin/stats').then(setStats).catch(() => {});
+    api<BillingOverview>('/api/admin/billing/overview').then(setBilling).catch(() => {});
+    api<Series>('/api/admin/series?days=30').then(setSeries).catch(() => {});
     api<{ rows: UsageRow[] }>('/api/admin/usage?days=14').then((d) => setUsage(d.rows.reverse())).catch(() => {});
   }, []);
   if (!stats) return <p class="account-empty">Loading</p>;
@@ -101,6 +158,7 @@ function Overview() {
     ['Users', stats.users, true], ['Verified', stats.verified], ['Active today', stats.activeToday], ['Requests today', stats.requestsToday, true],
     ['Requests 7d', stats.requests7d], ['Threads', stats.threads], ['Sandbox', stats.sandbox], ['Banned', stats.banned],
   ];
+  const activePlans = billing ? billing.plans.reduce((s, p) => s + p.active, 0) : 0;
   return (
     <div class="ads-dash">
       <div class="admin-overview">
@@ -110,6 +168,24 @@ function Overview() {
           ))}
         </div>
       </div>
+      {billing && (
+        <div class="admin-overview">
+          <div class="ads-stat-grid">
+            <div class="ads-stat-card accent"><small>Revenue, 30 days</small><strong>{money(billing.revenue30dCents)}</strong><em>Real payments only</em></div>
+            <div class="ads-stat-card"><small>Active plans</small><strong>{activePlans.toLocaleString()}</strong><em>{billing.plans.filter((p) => p.active).map((p) => `${p.active} ${p.name}`).join(', ') || 'none yet'}</em></div>
+            <div class="ads-stat-card"><small>Usage today</small><strong>{formatShekels(billing.unitsToday)}</strong><em>{billing.requestsToday.toLocaleString()} metered requests</em></div>
+            <div class="ads-stat-card"><small>Accounts paid for</small><strong>{billing.accountsPaidFor.toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong><em>{billing.salesOpen ? 'Sales open' : 'Sales closed'}</em></div>
+          </div>
+        </div>
+      )}
+      {series && (
+        <div class="admin-charts">
+          <DailyChart title="Requests per day" labels={series.days} values={series.requests} />
+          <DailyChart title="Usage per day" labels={series.days} values={series.units} format={formatShekels} />
+          <DailyChart title="Active users per day" labels={series.days} values={series.activeUsers} />
+          <DailyChart title="New sign-ups per day" labels={series.days} values={series.signups} />
+        </div>
+      )}
       <div class="admin-toolbar"><strong class="admin-toolbar-title">Usage, last 14 days</strong></div>
       <div class="admin-list">
         <div class="admin-head usage" aria-hidden="true"><span>Day</span><span>Model</span><span class="num">Requests</span><span class="num">Users</span><span class="num">Prompt chars</span></div>
@@ -186,7 +262,7 @@ function Users({ onStatus }: { onStatus: (s: NoticeState) => void }) {
         <div class="admin-toolbar-note">Total: <strong>{total}</strong> user{total === 1 ? '' : 's'}</div>
       </div>
       <div class="admin-list admin-users">
-        <div class="admin-head" aria-hidden="true"><span>User</span><span>Email</span><span>Flags</span><span class="num">Today</span><span class="num">Threads</span><span>Joined</span><span /></div>
+        <div class="admin-head" aria-hidden="true"><span>User</span><span>Email</span><span>Plan</span><span>Flags</span><span class="num">Today</span><span class="num">Threads</span><span>Joined</span><span /></div>
         {rows.length === 0 ? <p class="account-empty">No users found.</p> : rows.map((u) => (
           <div class="admin-row" key={u.id}>
             <div class="admin-cell admin-user">
@@ -197,6 +273,10 @@ function Users({ onStatus }: { onStatus: (s: NoticeState) => void }) {
               <span class="admin-label">Email</span>
               <span class="admin-email-addr" title={u.email ?? 'no email'}>{u.email ?? 'no email'}</span>
               {u.emailVerified ? <span class="account-badge on">Verified</span> : <span class="account-badge warn">Unverified</span>}
+            </div>
+            <div class="admin-cell admin-plan">
+              <span class="admin-label">Plan</span>
+              {(() => { const s = planStatus(u.plan, u.planUntil); return s.active ? <span class="account-badge on" title={s.text}>{planName(u.plan)}</span> : <span class="cell-dim">{s.text}</span>; })()}
             </div>
             <div class="admin-cell admin-flags">
               <span class="admin-label">Flags</span>
@@ -230,9 +310,12 @@ function Switch({ on, label, icon, disabled, title, onToggle }: { on: boolean; l
 }
 
 function ManageUserModal({ user: u, self, onClose, onChanged }: { user: AdminUser; self: boolean; onClose: () => void; onChanged: (s: NoticeState) => void }) {
-  const [tab, setTab] = useState<'access' | 'danger'>('access');
+  const [tab, setTab] = useState<'plan' | 'access' | 'danger'>('plan');
   const [banReason, setBanReason] = useState('');
   const [banDays, setBanDays] = useState('');
+  const [grantPlan, setGrantPlan] = useState(u.plan && PLANS.some((p) => p.id === u.plan) ? u.plan : 'plus');
+  const [grantDays, setGrantDays] = useState('30');
+  const planState = planStatus(u.plan, u.planUntil);
   const [notice, setNotice] = useState<NoticeState>({});
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -264,14 +347,35 @@ function ManageUserModal({ user: u, self, onClose, onChanged }: { user: AdminUse
         <div class="manage-summary">
           <span class="manage-chip"><UserCog size={12} /> {u.requestsToday} requests today</span>
           <span class="manage-chip">{u.threads} thread{u.threads === 1 ? '' : 's'}</span>
+          {planState.active && <span class="manage-chip"><Sparkles size={12} /> {planState.text}</span>}
           {u.ban && <span class="manage-chip"><span class="account-badge danger">Banned{u.ban.expires ? ` until ${day(u.ban.expires)}` : ''}</span></span>}
         </div>
         <div class="admin-tabs manage-tabs" role="tablist">
+          <button type="button" role="tab" aria-selected={tab === 'plan'} class={`admin-tab${tab === 'plan' ? ' active' : ''}`} onClick={() => setTab('plan')}>Plan</button>
           <button type="button" role="tab" aria-selected={tab === 'access'} class={`admin-tab${tab === 'access' ? ' active' : ''}`} onClick={() => setTab('access')}>Access</button>
           <button type="button" role="tab" aria-selected={tab === 'danger'} class={`admin-tab danger-tab${tab === 'danger' ? ' active' : ''}`} onClick={() => setTab('danger')}>Danger</button>
         </div>
         <div class="account-modal-body">
           {(notice.ok || notice.err) && <p class={`account-status ${notice.err ? 'err' : 'ok'}`}>{notice.err || notice.ok}</p>}
+          {tab === 'plan' && (
+            <div class="manage-block">
+              <div class="manage-ent">
+                <div class="manage-ent-row">
+                  <span class="manage-switch-label"><Sparkles size={13} /> Plan</span>
+                  <b class={planState.active ? 'ent-on' : ''}>{planState.text}</b>
+                  {u.plan && <button class="settings-action danger" type="button" disabled={busy} onClick={() => { if (confirm(`Remove ${u.username}'s plan?`)) act('/plan', { plan: null }, 'Plan removed.'); }}>Remove plan</button>}
+                </div>
+              </div>
+              <p class="manage-hint">A grant gives the plan's windows without a subscription. Stripe-managed plans are better changed from the user's billing portal; a grant here overrides the plan column until it expires.</p>
+              <form class="manage-grant" onSubmit={(e) => { e.preventDefault(); act('/plan', { plan: grantPlan, days: Number(grantDays) || 30 }, `${planName(grantPlan)} granted for ${Number(grantDays) || 30} days.`); }}>
+                <select value={grantPlan} onChange={(e) => setGrantPlan((e.target as HTMLSelectElement).value)} disabled={busy} aria-label="Plan">
+                  {PLANS.map((p) => <option key={p.id} value={p.id}>{p.name} ({formatShekels(p.weeklyUnits)} a week)</option>)}
+                </select>
+                <input placeholder="Days" type="number" min={1} value={grantDays} onInput={(e) => setGrantDays((e.target as HTMLInputElement).value)} style={{ width: 110 }} aria-label="Days" />
+                <button class="settings-action primary" type="submit" disabled={busy}>Grant plan</button>
+              </form>
+            </div>
+          )}
           {tab === 'access' && (
             <div class="manage-block">
               <div class="manage-ent">
@@ -347,5 +451,112 @@ function Audit() {
       </div>
       <Pagination page={page} pageSize={50} onPage={setPage} hasMore={entries.length >= 50} />
     </>
+  );
+}
+
+/** Last 12 months of revenue: stacked bars by tier with an MRR line (annual charges spread over twelve months). */
+function RevenueChart({ monthly }: { monthly: RevenueBucket[] }) {
+  const [hover, setHover] = useState<number | null>(null);
+  const months: string[] = [];
+  const now = new Date();
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+    months.push(d.toISOString().slice(0, 7));
+  }
+  const tiers = PLANS.map((p) => p.id);
+  const byMonth = months.map((m) => {
+    const cells = tiers.map((t) => monthly.filter((b) => b.period === m && b.tier.startsWith(`estro_${t}_`)).reduce((s, b) => s + b.cents, 0));
+    const mrr = monthly.filter((b) => b.period === m).reduce((s, b) => s + (b.tier.endsWith('_year') ? b.cents / 12 : b.cents), 0);
+    return { month: m, cells, total: cells.reduce((s, c) => s + c, 0), mrr };
+  });
+  const width = 600, height = 160, pad = 8;
+  const max = Math.max(1, ...byMonth.map((m) => Math.max(m.total, m.mrr)));
+  const slot = width / months.length;
+  const barW = slot * 0.62;
+  const y = (v: number) => height - pad - (v / max) * (height - pad * 2);
+  const label = (m: string) => new Date(m + '-01T00:00:00Z').toLocaleDateString(undefined, { month: 'short', year: '2-digit', timeZone: 'UTC' });
+  const line = byMonth.map((m, i) => `${(i * slot + slot / 2).toFixed(1)},${y(m.mrr).toFixed(1)}`).join(' ');
+  const h = hover == null ? null : byMonth[hover];
+  return (
+    <div class="admin-chart admin-chart-wide">
+      <div class="admin-chart-head"><strong>Monthly revenue by tier</strong><small>Line: monthly recurring, annual charges spread over 12 months</small></div>
+      <div class="spark-wrap" onMouseLeave={() => setHover(null)}
+        onMouseMove={(e) => {
+          const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+          if (!rect.width) return;
+          setHover(Math.max(0, Math.min(months.length - 1, Math.floor(((e.clientX - rect.left) / rect.width) * months.length))));
+        }}>
+        <div class="spark-tip">{h ? `${label(h.month)}: ${money(h.total)} billed, ${money(Math.round(h.mrr))} recurring${h.total ? ' · ' + tiers.map((t, i) => h.cells[i] ? `${planName(t)} ${money(h.cells[i])}` : '').filter(Boolean).join(', ') : ''}` : 'Hover a month for the breakdown'}</div>
+        <svg class="sparkline revenue-svg" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
+          {byMonth.map((m, i) => {
+            let acc = 0;
+            return m.cells.map((c, t) => {
+              if (!c) return null;
+              const top = y(acc + c), bottom = y(acc);
+              acc += c;
+              return <rect key={`${m.month}-${t}`} class={`revenue-seg tier-${t}`} x={(i * slot + (slot - barW) / 2).toFixed(1)} y={top.toFixed(1)} width={barW.toFixed(1)} height={Math.max(1, bottom - top).toFixed(1)} />;
+            });
+          })}
+          <polyline class="revenue-mrr" points={line} vectorEffect="non-scaling-stroke" />
+          {h && <circle class="spark-dot" cx={hover! * slot + slot / 2} cy={y(h.mrr)} r={3} />}
+        </svg>
+      </div>
+      <div class="admin-chart-axis revenue-axis">{months.map((m) => <span key={m}>{label(m)}</span>)}</div>
+      <div class="revenue-legend">{PLANS.map((p, i) => <span key={p.id}><i class={`tier-${i}`} /> {p.name}</span>)}<span><i class="mrr" /> Recurring</span></div>
+    </div>
+  );
+}
+
+function RevenueTab() {
+  const [revenue, setRevenue] = useState<Revenue | null>(null);
+  const [series, setSeries] = useState<Series | null>(null);
+  const [tx, setTx] = useState<Transaction[]>([]);
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    api<Revenue>('/api/admin/revenue').then(setRevenue).catch(() => {});
+    api<Series>('/api/admin/series?days=30').then(setSeries).catch(() => {});
+  }, []);
+  useEffect(() => { api<{ transactions: Transaction[] }>(`/api/admin/transactions?page=${page}`).then((d) => setTx(d.transactions)).catch(() => {}); }, [page]);
+  if (!revenue) return <p class="account-empty">Loading</p>;
+  const byTier = PLANS.map((p) => ({ plan: p, cents: revenue.monthly.filter((b) => b.tier.startsWith(`estro_${p.id}_`)).reduce((s, b) => s + b.cents, 0), count: revenue.monthly.filter((b) => b.tier.startsWith(`estro_${p.id}_`)).reduce((s, b) => s + b.count, 0) }));
+  return (
+    <div class="ads-dash">
+      <div class="revenue-summary">
+        <div><small>Total revenue</small><strong>{money(revenue.totalCents)}</strong></div>
+        <div><small>Transactions</small><strong>{revenue.transactions.toLocaleString()}</strong></div>
+        <div><small>Last 30 days</small><strong>{money(revenue.daily.reduce((s, b) => s + b.cents, 0))}</strong></div>
+      </div>
+      <div class="admin-charts">
+        <RevenueChart monthly={revenue.monthly} />
+        {series && <DailyChart title="Revenue per day, last 30 days" labels={series.days} values={series.revenueCents} format={(v) => money(v)} />}
+      </div>
+      <div class="admin-toolbar"><strong class="admin-toolbar-title">By tier, all time (real payments only, grants excluded)</strong></div>
+      <div class="admin-list">
+        <div class="admin-head tier" aria-hidden="true"><span>Plan</span><span class="num">Payments</span><span class="num">Revenue</span></div>
+        {byTier.map((t) => (
+          <div class="admin-row tier" key={t.plan.id}>
+            <div class="admin-cell"><span class="cell-main">{t.plan.name}</span> <span class="cell-sub">{formatUsd(t.plan.monthlyCents)} a month</span></div>
+            <div class="admin-cell admin-num">{t.count}</div>
+            <div class="admin-cell admin-num"><span class="cell-main">{money(t.cents)}</span></div>
+          </div>
+        ))}
+      </div>
+      <div class="admin-toolbar"><strong class="admin-toolbar-title">Transactions</strong></div>
+      <div class="admin-list">
+        <div class="admin-head tx" aria-hidden="true"><span>User</span><span>Tier</span><span class="num">Amount</span><span>Source</span><span>Until</span><span>When</span></div>
+        {tx.length === 0 && <p class="account-empty">No transactions yet.</p>}
+        {tx.map((t) => (
+          <div class="admin-row tx" key={t.id}>
+            <div class="admin-cell"><span class="cell-main">{t.username}</span></div>
+            <div class="admin-cell"><span class="cell-sub">{t.tier}</span></div>
+            <div class="admin-cell admin-num">{t.source === 'grant' ? <span class="account-badge">grant</span> : money(t.amountCents)}</div>
+            <div class="admin-cell"><span class={`account-badge${t.source === 'grant' ? ' warn' : ' on'}`}>{t.source}{t.actor ? ` · ${t.actor}` : ''}</span></div>
+            <div class="admin-cell"><span class="cell-dim">{t.periodEnd ? day(t.periodEnd) : '-'}</span></div>
+            <div class="admin-cell"><span class="cell-dim">{fmt(t.created)}</span></div>
+          </div>
+        ))}
+      </div>
+      <Pagination page={page} pageSize={50} onPage={setPage} hasMore={tx.length >= 50} />
+    </div>
   );
 }

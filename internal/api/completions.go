@@ -10,6 +10,7 @@ import (
 	"net/http"
 
 	"elichat/internal/auth"
+	"elichat/internal/billing"
 	"elichat/internal/db"
 	"elichat/internal/persona"
 	"elichat/internal/provider"
@@ -30,6 +31,7 @@ func (c *Chat) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/models", c.listModelsOpenAI)
 	mux.HandleFunc("GET /api/models", c.listModels)
 	mux.HandleFunc("GET /api/usage", auth.RequireUser(c.usage))
+	mux.HandleFunc("GET /v1/usage", auth.RequireUser(c.codexUsage))
 }
 
 type chatRequest struct {
@@ -86,6 +88,9 @@ func (c *Chat) completions(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if _, ok := c.admit(w, r, "openai", p.ID, func(s int, m, k string) { openAIError(w, s, m, k) }); !ok {
+		return
+	}
 
 	promptChars := 0
 	for _, m := range req.Messages {
@@ -101,6 +106,7 @@ func (c *Chat) completions(w http.ResponseWriter, r *http.Request) {
 	rw := newModelRewriter(w, p.ID)
 	prov.Serve(rw, r, provider.ChatCompletions, body)
 	rw.Close()
+	c.meter(r.Context(), u, p.ID, rw.usage, promptChars, rw.bytesOut)
 }
 
 func (c *Chat) recordUsage(ctx context.Context, u *auth.User, model string, promptChars int) {
@@ -126,12 +132,13 @@ func (c *Chat) usage(w http.ResponseWriter, r *http.Request) {
 func (c *Chat) listModels(w http.ResponseWriter, r *http.Request) {
 	type model struct {
 		*persona.Persona
-		Available bool `json:"available"`
+		Available    bool `json:"available"`
+		RequiresPlan bool `json:"requiresPlan"`
 	}
 	out := []model{}
 	for _, p := range persona.All() {
 		_, ok := c.Providers[p.Provider]
-		out = append(out, model{p, ok})
+		out = append(out, model{p, ok, !billing.IsFreeModel(p.ID)})
 	}
 	auth.WriteJSON(w, 200, map[string]any{"models": out})
 }
@@ -139,7 +146,7 @@ func (c *Chat) listModels(w http.ResponseWriter, r *http.Request) {
 func (c *Chat) listModelsOpenAI(w http.ResponseWriter, r *http.Request) {
 	data := []map[string]any{}
 	for _, p := range persona.All() {
-		data = append(data, map[string]any{"id": p.ID, "object": "model", "owned_by": "estro", "name": p.Name, "description": p.Description})
+		data = append(data, map[string]any{"id": p.ID, "object": "model", "owned_by": "estro", "name": p.Name, "description": p.Description, "short": p.Short, "requires_plan": !billing.IsFreeModel(p.ID)})
 	}
 	auth.WriteJSON(w, 200, map[string]any{"object": "list", "data": data})
 }

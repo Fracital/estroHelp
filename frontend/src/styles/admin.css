@@ -54,3 +54,46 @@
 html[data-scheme="light"] .account-badge.on { border-color: #9bd3a8; background: #e6f7ea; color: #1d6b35; }
 html[data-scheme="light"] .account-badge.warn { border-color: #e2d08a; background: #fbf4d6; color: #7a5d00; }
 html[data-scheme="light"] .account-badge.danger { background: rgba(255, 70, 88, 0.1); }
+
+/* ---- Billing: plan column, charts, revenue ---- */
+.admin-users { --users-cols: minmax(150px, 1.5fr) minmax(170px, 1.6fr) minmax(90px, .9fr) minmax(90px, .9fr) 82px 82px 96px 110px; }
+.admin-users .admin-plan .account-badge { white-space: nowrap; }
+
+.admin-charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.admin-chart { padding: 12px 14px 10px; background: var(--ui-glass); border: 1px solid var(--ui-border); border-radius: 9px; min-width: 0; }
+.admin-chart-wide { grid-column: 1 / -1; }
+.admin-chart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+.admin-chart-head strong { font-size: 13px; color: var(--ui-text); }
+.admin-chart-head small { color: var(--ui-text-subtle); font-size: 11px; text-align: right; }
+.admin-chart-axis { display: flex; justify-content: space-between; margin-top: 4px; color: var(--ui-text-subtle); font-size: 10px; }
+.admin-chart-axis.revenue-axis span { flex: 1; text-align: center; }
+
+.spark-wrap { position: relative; }
+.spark-tip { min-height: 16px; margin-bottom: 4px; color: var(--ui-text-subtle); font-size: 11px; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sparkline { display: block; width: 100%; max-width: 100%; height: 64px; overflow: hidden; }
+.sparkline polyline { fill: none; stroke: var(--ui-accent); stroke-width: 1.5; }
+.sparkline polygon { fill: var(--ui-accent); opacity: .12; stroke: none; }
+.sparkline .spark-dot { fill: var(--ui-accent); opacity: 0; }
+.spark-wrap:hover .spark-dot { opacity: 1; }
+.sparkline.revenue-svg { height: 160px; }
+.revenue-seg { fill: var(--ui-accent); }
+.revenue-seg.tier-0 { opacity: .3; } .revenue-seg.tier-1 { opacity: .45; } .revenue-seg.tier-2 { opacity: .6; } .revenue-seg.tier-3 { opacity: .8; } .revenue-seg.tier-4 { opacity: 1; }
+.sparkline polyline.revenue-mrr { stroke: var(--ui-text); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.revenue-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; color: var(--ui-text-subtle); font-size: 11px; }
+.revenue-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: var(--ui-accent); vertical-align: -1px; }
+.revenue-legend i.tier-0 { opacity: .3; } .revenue-legend i.tier-1 { opacity: .45; } .revenue-legend i.tier-2 { opacity: .6; } .revenue-legend i.tier-3 { opacity: .8; }
+.revenue-legend i.mrr { background: none; height: 0; border-top: 2px dashed var(--ui-text); border-radius: 0; vertical-align: 2px; }
+
+.revenue-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.revenue-summary > div { padding: 12px 14px; background: var(--ui-glass); border: 1px solid var(--ui-border); border-radius: 9px; }
+.revenue-summary small { display: block; color: var(--ui-text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.revenue-summary strong { display: block; margin-top: 4px; font-size: 20px; font-weight: 650; color: var(--ui-text); font-variant-numeric: tabular-nums; }
+
+.admin-list .admin-row.tx, .admin-list .admin-head.tx { grid-template-columns: minmax(110px, 1.2fr) minmax(130px, 1.2fr) 90px minmax(110px, 1fr) 100px minmax(140px, 1fr); }
+.admin-list .admin-row.tier, .admin-list .admin-head.tier { grid-template-columns: 1fr 100px 120px; }
+.manage-grant select { padding: 7px 10px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-glass); color: var(--ui-text); font-size: 13px; outline: none; flex: 1; min-width: 160px; }
+.manage-grant select:focus { border-color: var(--ui-accent); }
+@media (max-width: 720px) {
+  .admin-list .admin-row.tx, .admin-list .admin-row.tier { grid-template-columns: 1fr 1fr; }
+  .admin-list .admin-head.tx, .admin-list .admin-head.tier { display: none; }
+}

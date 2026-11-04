@@ -240,8 +240,10 @@ data: [DONE]`,
               <tr><td><code>401</code></td><td>none</td><td>Missing or expired session token</td></tr>
               <tr><td><code>403</code></td><td><code>email_unverified</code></td><td>Verify your email address first</td></tr>
               <tr><td><code>403</code></td><td><code>banned</code></td><td>Account suspended by admin</td></tr>
+              <tr><td><code>402</code></td><td><code>billing_error</code></td><td>No active plan. The API and Kali Gamma and Beta need one; see <a href="/pricing">pricing</a></td></tr>
               <tr><td><code>404</code></td><td><code>model_not_found</code></td><td>Unknown model id</td></tr>
               <tr><td><code>429</code></td><td><code>rate_limit_exceeded</code></td><td>Daily request cap reached (resets at midnight UTC)</td></tr>
+              <tr><td><code>429</code></td><td><code>usage_limit_reached</code></td><td>A 5-hour or weekly window is full; <code>resets_in</code> and <code>Retry-After</code> say when</td></tr>
               <tr><td><code>502</code></td><td>none</td><td>The model provider is unavailable</td></tr>
             </tbody>
           </table>

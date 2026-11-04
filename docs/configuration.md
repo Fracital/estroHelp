@@ -26,6 +26,20 @@ All configuration is environment variables. `.env` in the working directory is l
 
 A rate value is `perMinute` or `perMinute,burst`; `0` disables that tier. Buckets are per process.
 
+## Billing
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `STRIPE_SECRET_KEY` | empty | Live Stripe secret. Unset, or containing `CHANGE_ME`, disables checkout (`503`) and the webhook. |
+| `STRIPE_WEBHOOK_SECRET` | empty | Signing secret for `POST /api/stripe/webhook`. |
+| `STRIPE_PORTAL_CONFIGURATION` | empty | Billing portal configuration id (`bpc_...`); required for the portal button. |
+| `STRIPE_PRICE_<PLAN>_<MONTHLY\|ANNUAL>` | empty | Recurring price ids for `STARTER`, `PLUS`, `PRO`, `MAX`, `ULTRA`. |
+| `STRIPE_SANDBOX_*` | empty | The same names for accounts flagged sandbox. |
+| `SALES_OPEN` | `true` | `false` closes checkout and upgrades for everyone except sandbox accounts. |
+| `PUBLIC_URL` | `https://PUBLIC_HOST` | Origin used in Checkout and portal return URLs. |
+
+Plans, prices and window caps are code (`internal/billing/plans.go`), not configuration. See [Billing](billing.md).
+
 ### Security
 
 `SESSION_SECRET` (optional) signs the short-lived token used between a password and its two-factor code. Set it to a long random string so that step survives a restart; unset, a random secret is generated per process.

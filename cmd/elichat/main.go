@@ -15,6 +15,7 @@ import (
 
 	"elichat/internal/api"
 	"elichat/internal/auth"
+	"elichat/internal/billing"
 	"elichat/internal/db"
 	"elichat/internal/provider"
 	"elichat/internal/server"
@@ -90,6 +91,7 @@ func main() {
 		Store:      store,
 		Auth:       &auth.Handlers{Store: store, Mailer: auth.MailerFromEnv(), RequireVerifiedEmail: requireVerified},
 		Admin:      &auth.Admin{Store: store},
+		Billing:    &billing.Handlers{DB: database, Store: store},
 		Chat:       &api.Chat{DB: database, Store: store, Providers: providers, DailyRequestLimit: dailyLimit, RequireVerifiedEmail: requireVerified},
 		ExtHandler: zai.ExtHandler(),
 		StaticDir:  env("STATIC_DIR", "frontend/dist"),

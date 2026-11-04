@@ -23,6 +23,8 @@ interface Props {
   onOpenImage: (attachments: Attachment[], index: number) => void;
   models: MenuModel[];
   model: string;
+  /** False locks the models that need a plan. */
+  hasPlan?: boolean;
   onModelChange: (id: string) => void;
   tools: ToolDef[];
   toolsSupported: boolean;
@@ -31,7 +33,7 @@ interface Props {
   extra?: ComponentChildren;
 }
 
-export default function Composer({ variant, placeholder, busy, disabled, inputRef, seed, onSend, onStop, onNotice, onOpenImage, models, model, onModelChange, tools, toolsSupported, toolsOff, onToolsChange, extra }: Props) {
+export default function Composer({ variant, placeholder, busy, disabled, inputRef, seed, onSend, onStop, onNotice, onOpenImage, models, model, hasPlan = true, onModelChange, tools, toolsSupported, toolsOff, onToolsChange, extra }: Props) {
   const [text, setText] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -74,7 +76,7 @@ export default function Composer({ variant, placeholder, busy, disabled, inputRe
         <div class="kali-composer-left">
           <button type="button" class="kali-icon-btn" title="Attach file" aria-label="Attach file" onClick={() => fileRef.current?.click()}><Paperclip size={15} /></button>
           <input ref={fileRef} type="file" multiple hidden onChange={(e) => { const el = e.target as HTMLInputElement; addFiles(Array.from(el.files ?? [])); el.value = ''; }} />
-          <ModelMenu models={models} value={model} onChange={onModelChange} />
+          <ModelMenu models={models} value={model} hasPlan={hasPlan} onChange={onModelChange} />
           <ToolsMenu tools={tools} supported={toolsSupported} off={toolsOff} onChange={onToolsChange} />
         </div>
         {busy

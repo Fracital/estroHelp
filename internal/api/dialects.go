@@ -83,6 +83,9 @@ func (c *Chat) messages(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if _, ok := c.admit(w, r, "anthropic", p.ID, func(s int, m, k string) { anthropicError(w, s, m, k) }); !ok {
+		return
+	}
 	promptChars := 0
 	for _, m := range req.Messages {
 		promptChars += len(m)
@@ -98,6 +101,7 @@ func (c *Chat) messages(w http.ResponseWriter, r *http.Request) {
 	rw := newModelRewriter(w, p.ID)
 	prov.Serve(rw, r, provider.Messages, body)
 	rw.Close()
+	c.meter(r.Context(), u, p.ID, rw.usage, promptChars, rw.bytesOut)
 }
 
 func (c *Chat) responses(w http.ResponseWriter, r *http.Request) {
@@ -126,6 +130,9 @@ func (c *Chat) responses(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if _, ok := c.admit(w, r, "openai", p.ID, func(s int, m, k string) { openAIError(w, s, m, k) }); !ok {
+		return
+	}
 	instructions, input := p.ApplyResponses(req.Instructions, req.Input)
 	passthrough["instructions"], _ = json.Marshal(instructions)
 	passthrough["input"] = input
@@ -137,4 +144,5 @@ func (c *Chat) responses(w http.ResponseWriter, r *http.Request) {
 	rw := newModelRewriter(w, p.ID)
 	prov.Serve(rw, r, provider.Responses, body)
 	rw.Close()
+	c.meter(r.Context(), u, p.ID, rw.usage, len(req.Input), rw.bytesOut)
 }

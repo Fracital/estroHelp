@@ -3,6 +3,7 @@ import Shell from '../layouts/Shell.astro';
 import Integrations from '../components/Integrations';
 import RunButton from '../components/RunButton';
 import { LegalFooter } from '../components/AuthGate';
+import { PLANS, FREE_UNITS_PER_DAY, formatShekels, formatUsd, priceFor } from '../lib/plans';
 
 const models = [
   { id: 'gamma', name: 'Kali Gamma', tag: 'Deep', body: 'Our most capable model. Plans multi-step work, reasons through tricky bugs, and holds large codebases in view.' },
@@ -47,6 +48,36 @@ const curl = `curl https://estro.help/v1/chat/completions \\
 
       <section class="container">
         <Integrations compact client:load />
+      </section>
+
+      <section class="container plans">
+        <div class="plans-head">
+          <h2>Plans</h2>
+          <p class="hint">Every paid plan unlocks all three models and the API. Higher tiers give more usage in every window. Without a plan you get Kali Epsilon with {formatShekels(FREE_UNITS_PER_DAY)} a day.</p>
+        </div>
+        <div class="plans-table-wrap">
+          <table class="table plans-table">
+            <thead>
+              <tr><th scope="col">Plan</th><th scope="col" class="num">Monthly</th><th scope="col" class="num">Annual, per month</th><th scope="col" class="num">5-hour window</th><th scope="col" class="num">Weekly window</th></tr>
+            </thead>
+            <tbody>
+              {PLANS.map((plan) => {
+                const monthly = priceFor(plan, 'monthly');
+                const annual = priceFor(plan, 'annual');
+                return (
+                  <tr>
+                    <th scope="row">{plan.name}{plan.recommended && <span class="badge badge-ok" style="margin-left:8px">Recommended</span>}<br /><span class="plans-sub">{plan.audience}</span></th>
+                    <td class="num mono">{formatUsd(monthly.perMonthCents)}</td>
+                    <td class="num mono">{formatUsd(annual.perMonthCents)}<br /><span class="plans-sub">Billed annually, {formatUsd(annual.chargeCents)} a year</span></td>
+                    <td class="num mono">{formatShekels(plan.fiveHourUnits)}</td>
+                    <td class="num mono">{formatShekels(plan.weeklyUnits)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <a class="btn btn-sm" href="/pricing">Compare plans on the pricing page</a>
       </section>
 
       <section class="container features">
@@ -105,6 +136,16 @@ const curl = `curl https://estro.help/v1/chat/completions \\
   .model-id-hint { font-size: 11px; opacity: .7; }
   .model-id:hover { color: var(--text); border-color: var(--border-2); }
   .model-id.copied { color: var(--ok); border-color: var(--ok); }
+
+  .plans { padding-top: 70px; }
+  .plans-head { max-width: 640px; }
+  .plans-head h2 { font-size: 28px; }
+  .plans-head .hint { margin-top: 8px; }
+  .plans-table-wrap { margin: 22px 0 18px; overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+  .plans-table th[scope="row"] { color: var(--text); font-size: 14px; text-transform: none; letter-spacing: 0; font-weight: 600; }
+  .plans-table .num { text-align: right; white-space: nowrap; }
+  .plans-table .mono { font-family: var(--mono); font-size: 13px; }
+  .plans-sub { display: inline-block; margin-top: 2px; color: var(--muted); font-size: 12px; font-family: var(--font, inherit); font-weight: 400; }
 
   .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 30px 24px; padding: 90px 0 20px; }
   .feature .num { color: var(--accent); font-family: var(--mono); font-size: 12px; }

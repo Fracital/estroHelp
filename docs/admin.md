@@ -17,6 +17,10 @@
 
 A ban records reason, actor and optional expiry, revokes all of the user's sessions immediately, and refuses sign-in and every chat request while active. Lifting a ban keeps the record. Bans are per user, not per IP.
 
+## Plans
+
+The Users tab shows each account's plan. Manage opens on the Plan tab: pick a plan and a number of days to grant it without Stripe (`POST /api/admin/users/{id}/plan`), or remove it. Grants write a `payment` row with `source='grant'` and audit entries `plan_grant` and `plan_clear`. A grant overrides a Stripe plan until it expires, so prefer the user's own billing portal for subscribers. The Overview tab adds revenue, active plans, usage and accounts-paid-for tiles with 30-day graphs; the Revenue tab has monthly revenue by tier with a recurring-revenue line, daily revenue, per-tier totals and the transaction list. Details in [Billing](billing.md).
+
 ## Daily caps
 
 `DAILY_REQUEST_LIMIT` is the number of chat requests an account may make per UTC day, counted across `/v1/chat/completions`, `/v1/messages` and `/v1/responses` and across models. The account page shows the running count. Admins and sandbox users have no cap. Per-minute rate limits are a separate, operator-level control; see [Configuration](configuration.md).

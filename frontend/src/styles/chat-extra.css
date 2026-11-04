@@ -15,6 +15,14 @@
 .kali-sidebar-handle:hover, .kali-ai.resizing .kali-sidebar-handle { background: color-mix(in srgb, var(--theme-accent) 55%, transparent); }
 .kali-ai.resizing, .kali-ai.resizing * { user-select: none; cursor: col-resize; }
 .kali-ai:not(.sidebar-open) .kali-sidebar-handle { display: none; }
+/* The chat root must stack above the rail (z-index 5) so the full-screen
+   workspace pane and drawers cover it on narrow layouts; the pane itself
+   sits above the chat header and its toolbar. */
+.kali-ai { z-index: 6; }
+@media (min-width: 901px) {
+  .kali-ai .kali-ws { position: relative; z-index: 2; }
+}
+
 /* Resizable workspace pane: same mechanism, dragging left grows it. */
 .kali-ai .kali-ws { flex-basis: var(--kali-ws-w, min(46%, 640px)); width: var(--kali-ws-w, auto); max-width: 70vw; }
 .kali-ws-handle {

@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'preact/hooks';
 import RunButton from './RunButton';
-import { runnableLang } from '../lib/run';
+import { runnableSample } from '../lib/run';
 
 export interface CodeSample {
   id: string;
@@ -15,7 +15,7 @@ export default function CodeTabs({ samples }: { samples: CodeSample[] }) {
   const timer = useRef<number>(0);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const sample = samples[active];
-  const run = runnableLang(sample.lang ?? sample.id);
+  const run = runnableSample(sample.lang ?? sample.id, sample.code);
 
   useEffect(() => () => clearTimeout(timer.current), []);
 

@@ -61,14 +61,75 @@ export function localizeSample(code: string, origin: string, secret: string | nu
  * (-N / --no-buffer, -sS, -I).
  */
 export function toShellLine(code: string): string {
-  return code
+  const joined = code
     .split('\n')
     .filter((l) => !/^\s*#/.test(l))
     .join('\n')
-    .replace(/\\\r?\n\s*/g, ' ')
-    .replace(/\r?\n\s*/g, ' ')
-    .replace(/\bcurl\s+(?:(?:-N|--no-buffer|-sS|-I)\s+)+/g, 'curl ')
-    .trim();
+    .replace(/\\\r?\n\s*/g, ' ');
+  // Separate lines are separate commands, except inside an open quote
+  // (a multi-line JSON body), where the line break is just whitespace.
+  let out = '';
+  let quote: '"' | "'" | null = null;
+  for (const raw of joined.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (out) out += quote ? ' ' : '; ';
+    out += line;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (quote) {
+        if (ch === '\\' && quote === '"') { i++; continue; }
+        if (ch === quote) quote = null;
+      } else if (ch === '"' || ch === "'") {
+        quote = ch;
+      }
+    }
+  }
+  return out.replace(/\bcurl\s+(?:(?:-N|--no-buffer|-sS|-I)\s+)+/g, 'curl ').trim();
+}
+
+/** Programs that exist inside the workspace shell. Samples that call anything else cannot run there. */
+const SANDBOX_BINS = new Set(['curl', 'node', 'npm', 'npx', 'echo', 'printf', 'cat', 'ls', 'mkdir', 'cd', 'export', 'env', 'sh', 'bash', 'true', 'set', 'unset', 'read', 'test', 'sleep', 'head', 'tail', 'grep', 'sed', 'awk', 'wc', 'tee', 'jq']);
+
+/** True when every command in a shell sample uses a program the sandbox has. */
+export function sandboxCanRun(code: string): boolean {
+  const line = toShellLine(code);
+  // Split on command separators outside quotes only.
+  const cmds: string[] = [];
+  let cur = '';
+  let quote: '"' | "'" | null = null;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (quote) {
+      if (ch === '\\' && quote === '"') { cur += ch + (line[i + 1] ?? ''); i++; continue; }
+      if (ch === quote) quote = null;
+      cur += ch;
+    } else if (ch === '"' || ch === "'") {
+      quote = ch; cur += ch;
+    } else if (ch === ';' || ch === '|' || (ch === '&' && line[i + 1] === '&')) {
+      cmds.push(cur); cur = '';
+      if (ch === '&' || (ch === '|' && line[i + 1] === '|')) i++;
+    } else {
+      cur += ch;
+    }
+  }
+  cmds.push(cur);
+  for (const cmd of cmds) {
+    const words = cmd.trim().split(/\s+/).filter(Boolean);
+    let i = 0;
+    while (i < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[i])) i++;
+    if (i >= words.length) continue;
+    if (!SANDBOX_BINS.has(words[i].replace(/^.*\//, ''))) return false;
+  }
+  return true;
+}
+
+/** The run language for a sample, or null when the sample cannot run in the workspace. */
+export function runnableSample(hint: string | undefined, code: string): RunLang | null {
+  const lang = runnableLang(hint);
+  if (!lang) return null;
+  if (lang === 'sh' && !sandboxCanRun(code)) return null;
+  return lang;
 }
 
 export function readShellKey(): string | null {

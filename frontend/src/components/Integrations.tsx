@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { INTEGRATIONS, anchorFor, iconUrl, type Integration, type IntegrationConfig } from '../lib/integrations';
 import RunButton from './RunButton';
-import { runnableLang } from '../lib/run';
+import { runnableSample } from '../lib/run';
 import '../styles/integrations.css';
 
 const HEADING = 'Estro is available on your favorite platforms:';
@@ -28,7 +28,7 @@ function CopyButton({ code, title }: { code: string; title: string }) {
 }
 
 function ConfigBlock({ config }: { config: IntegrationConfig }) {
-  const run = runnableLang(config.language);
+  const run = runnableSample(config.language, config.code);
   return (
     <div class="int-config">
       <div class="int-config-head">

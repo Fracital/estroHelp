@@ -83,3 +83,16 @@ Less common: `ZAI_BROWSER_PROXY` (comma-separated SOCKS5/HTTP proxies, or `mullv
 | `SMTP_FROM` | `Estro <noreply@localhost>` | Sender, with optional display name. |
 
 See also: [Deployment](deployment.md).
+
+## z.ai account pool
+
+Kali Epsilon's browser workers each lease their own chat.z.ai account from the `zai_account` table, so z.ai's per-account concurrency cap never turns into a 429 for a user. A 429 cools the account down for 90 seconds and the worker respawns on another; a token z.ai rejects retires the account. The filler keeps the pool topped up by running `ext/zai_signup.py` (real signup form, local captcha solve, disposable mailbox), one signup at a time with a backoff after failures. The script needs `patchright`, `numpy` and `pillow` for the Python the service runs.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `ZAI_ACCOUNT_POOL` | `true` | Set to `false` to use only the shared `ZAI_TOKEN` / `zai_config.json` account. |
+| `ZAI_ACCOUNT_POOL_TARGET` | browser pool size + 1 | Healthy accounts the filler maintains; `0` disables provisioning but still leases existing rows. |
+| `ZAI_SIGNUP_SCRIPT` | `ext/zai_signup.py` | Path to the signup driver. |
+| `ZAI_SIGNUP_PROXY` | unset | SOCKS5 proxy for signups; with `ZAI_BROWSER_PROXY=mullvad` a live relay is used. |
+
+Pool events are logged as `zai_account_leased`, `zai_account_busy`, `zai_account_dead`, `zai_signup_start`, `zai_signup_ok` and `zai_signup_failed`.

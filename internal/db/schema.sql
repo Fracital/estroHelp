@@ -228,3 +228,23 @@ CREATE TABLE IF NOT EXISTS response_chain (
     PRIMARY KEY (user_id, response_id)
 );
 CREATE INDEX IF NOT EXISTS response_chain_created_idx ON response_chain (created);
+
+-- Provisioned chat.z.ai accounts for Kali Epsilon's browser workers: one per
+-- worker so z.ai's per-account concurrency cap never turns into a 429. The
+-- pool filler (internal/zai/accounts.go) adds rows through ext/zai_signup.py;
+-- a 429 sets cooldown_until, a rejected token sets status 'dead'.
+CREATE TABLE IF NOT EXISTS zai_account (
+    id SERIAL PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    password TEXT NOT NULL,
+    token TEXT NOT NULL,
+    user_id TEXT NOT NULL DEFAULT '',
+    name TEXT NOT NULL DEFAULT '',
+    mail_provider TEXT NOT NULL DEFAULT '',
+    mail_password TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'dead')),
+    strikes INT NOT NULL DEFAULT 0,
+    cooldown_until TIMESTAMPTZ,
+    last_used TIMESTAMPTZ,
+    created TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

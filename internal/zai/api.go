@@ -40,11 +40,11 @@ func Prewarm() {
 }
 
 // Models lists the public model ids this provider accepts, in display order.
-// Guests get only GLM-5.3 Flash; a signed-in account (ZAI_TOKEN or
-// zai_config.json) unlocks GLM-5.3 and GLM-5.2.
+// Guests get only GLM-5.3 Flash; a signed-in account (ZAI_TOKEN,
+// zai_config.json, or a provisioned pool account) unlocks GLM-5.3 and GLM-5.2.
 func Models() []string {
 	models := []string{"glm-5.3-flash"}
-	if zaiAccountToken() != "" {
+	if zaiAccountToken() != "" || (zaiGetAccountPool() != nil && zaiGetAccountPool().hasAccounts()) {
 		models = append(models, "glm-5.3", "glm-5.2")
 	}
 	return models

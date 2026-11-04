@@ -61,7 +61,10 @@ type zaiBrowserResult struct {
 	Status   int     `json:"status"`
 	// RelayBlocked: the captcha hosts are unreachable from this exit IP.
 	RelayBlocked bool `json:"relay_blocked"`
-	Usage        struct {
+	// Rotated: the worker's account answered 429 and was swapped; nothing was
+	// generated, so the turn can be resent once.
+	Rotated bool `json:"-"`
+	Usage   struct {
 		PromptTokens     int `json:"prompt_tokens"`
 		CompletionTokens int `json:"completion_tokens"`
 	} `json:"usage"`
@@ -74,7 +77,7 @@ func zaiRunBrowserTransport(ctx context.Context, upstreamModel, prompt string, e
 	out, err := zaiGetBrowserPool().send(ctx, turn, onDelta)
 	// No request reached z.ai on a blocked relay; the worker has moved to a
 	// fresh one, so one retry costs no duplicate generation.
-	for i := 0; err == nil && !out.OK && out.RelayBlocked && !out.Streamed && i < 2; i++ {
+	for i := 0; err == nil && !out.OK && (out.RelayBlocked || out.Rotated) && !out.Streamed && i < 2; i++ {
 		out, err = zaiGetBrowserPool().send(ctx, turn, onDelta)
 	}
 	if err != nil {
@@ -200,7 +203,8 @@ func (p *zaiBrowserPool) send(ctx context.Context, turn []byte, onDelta func(str
 type zaiBrowserWorker struct {
 	id         int
 	proxy      string
-	mullvad    bool // proxy came from ZAI_BROWSER_PROXY=mullvad and may be rotated
+	mullvad    bool        // proxy came from ZAI_BROWSER_PROXY=mullvad and may be rotated
+	account    *zaiAccount // leased from the account pool; nil means the shared ZAI_TOKEN or a guest
 	stdin      io.WriteCloser
 	stdout     *bufio.Scanner
 	stdoutFile *os.File
@@ -230,6 +234,14 @@ func (w *zaiBrowserWorker) ensure() error {
 		}
 		logf("event=zai_browser_proxy_rotated worker=%d reason=start_failed", w.id)
 		w.proxy = next
+		err = w.spawn()
+	}
+	// A token z.ai no longer accepts retires its account; the worker takes another.
+	for i := 0; err != nil && w.account != nil && strings.Contains(err.Error(), "rejected the signed-in token") && i < 2; i++ {
+		if pool := zaiGetAccountPool(); pool != nil {
+			pool.dead(context.Background(), w.account, "token_rejected")
+		}
+		w.account = nil
 		err = w.spawn()
 	}
 	return err
@@ -281,6 +293,17 @@ func (w *zaiBrowserWorker) send(ctx context.Context, turn []byte, onDelta func(s
 		// WAF block page or unreachable captcha: this exit IP is unusable,
 		// so move the worker to a fresh one.
 		w.rotateProxy()
+	}
+	if pool := zaiGetAccountPool(); pool != nil && w.account != nil {
+		if !out.OK && out.Status == http.StatusTooManyRequests {
+			// The account hit its concurrency cap: cool it down and respawn on another.
+			pool.busy(context.Background(), w.account)
+			w.account = nil
+			w.kill()
+			out.Rotated = true
+		} else if out.OK {
+			pool.ok(context.Background(), w.account)
+		}
 	}
 	return &out, nil
 }
@@ -418,7 +441,16 @@ func (w *zaiBrowserWorker) spawn() error {
 
 	// The pipe buffer takes this line without blocking; the process only reads
 	// it once Python starts, which readResult below bounds.
-	session, _ := json.Marshal(map[string]any{"headless": false, "proxy": w.proxy, "token": zaiAccountToken()})
+	token := zaiAccountToken()
+	if pool := zaiGetAccountPool(); pool != nil {
+		if w.account == nil {
+			w.account = pool.lease(context.Background(), w.id)
+		}
+		if w.account != nil {
+			token = w.account.Token
+		}
+	}
+	session, _ := json.Marshal(map[string]any{"headless": false, "proxy": w.proxy, "token": token})
 	if _, err := stdin.Write(append(session, '\n')); err != nil {
 		w.kill()
 		return err

@@ -77,6 +77,7 @@ func main() {
 	}
 	if !envBool("ZAI_DISABLED", false) {
 		providers["zai"] = provider.Zai{}
+		zai.SetDB(database)
 		zai.Prewarm()
 	}
 

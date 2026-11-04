@@ -1,6 +1,6 @@
 # Estro
 
-Estro is a chat workspace for coding with three models, Kali Gamma, Kali Beta and Kali Epsilon. It runs as a single Go binary that serves a static Astro site, talks to PostgreSQL, and relays chat requests to the model providers. Besides the chat UI it offers an OpenAI-compatible API (chat completions, Anthropic-style messages and the Responses dialect), an in-browser workspace with a shell and a file system that the model can drive with tools, accounts with email verification, API keys, an admin panel, and a theme system.
+Estro is a chat workspace for coding with three models, Kali Gamma, Kali Beta and Kali Epsilon. It runs as a single Go binary that serves a static Astro site, talks to PostgreSQL, and relays chat requests to the model providers. Besides the chat UI it offers an OpenAI-compatible API (chat completions, Anthropic-style messages and the Responses dialect), an in-browser workspace with a shell and a file system that the model can drive with tools, accounts with email verification, passkeys and two-factor authentication, API keys, an admin panel, and a theme system.
 
 Public host: `estro.help`.
 

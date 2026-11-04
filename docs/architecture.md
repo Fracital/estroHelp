@@ -26,6 +26,12 @@ The `Authenticate` middleware accepts a bearer token or API key first, then the 
 
 Email verification: a six-digit code, hashed, valid for 15 minutes, with per-address and per-IP send limits recorded in `email_log`. When `REQUIRE_VERIFIED_EMAIL` is on, chat endpoints refuse unverified accounts (admins exempt). Password reset works the same way and revokes all sessions on success.
 
+### Passkeys and two-factor
+
+Passkeys are WebAuthn credentials stored in the `passkey` table (credential id, public key, AAGUID, sign counter, transports, name, last use). Registration and sign-in are two-step ceremonies: `begin` stores a challenge row in `webauthn_challenge` with a five minute expiry, `finish` deletes that row in the same query that reads it, so a challenge is single use. Sign-in is discoverable: the browser presents a resident credential, the server looks up its owner by credential id and checks the user handle, then opens a normal session. The sign counter is updated on every use and an assertion whose counter went backwards is refused as a possible clone. The relying party id and origin come from `PUBLIC_HOST` when it is set and from the request host otherwise, so a dev server on `localhost` works without configuration.
+
+Two-factor uses TOTP (RFC 6238, SHA1, six digits, 30 second steps, one step of skew). Enrolment keeps the secret in `totp_pending_secret` until the user proves a code, then moves it to `totp_secret`, sets `totp_enabled` and stores ten backup codes as hashes. A password login on an account with two-factor on answers `{"mfa":"totp","mfaToken":"..."}` instead of a session; the token is an HMAC-signed `user.expiry.nonce` value good for five minutes and at most five code attempts, after which the user starts over. A passkey sign-in is already a strong factor and skips the code. Enabling two-factor signs out the account's other sessions.
+
 ## The `/v1` request path
 
 Three dialects share one path: `/v1/chat/completions` (OpenAI chat), `/v1/messages` (Anthropic messages) and `/v1/responses` (OpenAI Responses). Each handler:

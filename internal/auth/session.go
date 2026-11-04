@@ -27,6 +27,9 @@ type User struct {
 	Sandbox       bool       `json:"sandbox"`
 	Created       time.Time  `json:"created"`
 	LastLogin     *time.Time `json:"lastLogin"`
+	TotpEnabled   bool       `json:"totpEnabled"`
+	// PasskeyCount is filled by /api/auth/me only.
+	PasskeyCount int `json:"passkeyCount"`
 }
 
 type Ban struct {
@@ -49,11 +52,11 @@ type Store struct {
 	DB *db.DB
 }
 
-const userCols = `id, username, email, email_verified, admin, sandbox, created, last_login`
+const userCols = `id, username, email, email_verified, admin, sandbox, created, last_login, totp_enabled`
 
 func scanUser(row pgx.Row) (*User, error) {
 	var u User
-	err := row.Scan(&u.ID, &u.Username, &u.Email, &u.EmailVerified, &u.Admin, &u.Sandbox, &u.Created, &u.LastLogin)
+	err := row.Scan(&u.ID, &u.Username, &u.Email, &u.EmailVerified, &u.Admin, &u.Sandbox, &u.Created, &u.LastLogin, &u.TotpEnabled)
 	if err != nil {
 		return nil, err
 	}

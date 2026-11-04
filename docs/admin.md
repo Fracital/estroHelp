@@ -25,6 +25,18 @@ A ban records reason, actor and optional expiry, revokes all of the user's sessi
 
 Users manage their own keys on the account page (name, prefix, created, last used; create returns the secret once; revoke). Admins do not see or manage other users' keys; deleting a user removes them. The in-chat shell creates and reuses a key named `Shell` on the user's behalf. Keys authenticate exactly like a session and are logged in the audit trail when created or revoked.
 
+## Account security
+
+Every account can add passkeys and turn on two-factor authentication from the Security section of the account page.
+
+- Passkeys use the browser's WebAuthn support: a fingerprint, face, device PIN or a hardware key. A passkey signs the user in without a password and without a two-factor code. Users can keep up to ten, rename them and remove them. A passkey whose counter goes backwards is treated as cloned and refused; the event is written to the audit log.
+- Two-factor adds an authenticator app code after the password. Turning it on shows ten single-use backup codes exactly once; the user can regenerate them with a current code. Turning it on also signs out the account's other sessions.
+- The audit log records `passkey_add`, `passkey_remove`, `passkey_clone_warning`, `totp_enable`, `totp_disable` and `totp_backup_regenerate`.
+
+Admins have no button to reset a user's two-factor. If someone has lost both the authenticator and the backup codes, confirm their identity out of band and clear it in the database: `UPDATE users SET totp_enabled=false, totp_secret=NULL, totp_backup_codes='{}' WHERE username='...'`. "Sign out everywhere" in the Manage modal still works as usual.
+
+Passkeys need the relying party id to match the site's host. Set `PUBLIC_HOST` in production (see configuration); on a dev server the request host is used.
+
 ## Email
 
 With SMTP configured, registration, address changes and password resets send six-digit codes that expire after 15 minutes, with sending limited to 5 per address and 20 per IP per hour. Without SMTP, codes appear in the server log and an admin can mark an address verified from the Users tab.

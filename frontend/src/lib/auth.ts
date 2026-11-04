@@ -10,6 +10,8 @@ export interface User {
   sandbox: boolean;
   created: string;
   lastLogin: string | null;
+  totpEnabled: boolean;
+  passkeyCount: number;
 }
 
 export interface Ban {

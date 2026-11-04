@@ -28,6 +28,44 @@ Keys:
 
 Usage: `GET /api/usage` returns `{"requestsToday":n,"dailyLimit":n}`; `dailyLimit` is 0 when the account has no cap.
 
+### Passkeys and two-factor sign-in
+
+`POST /api/auth/login` returns a session as described above unless the account has two-factor on, in which case the body is `{"mfa":"totp","mfaToken":"..."}` and no session exists yet. Send the code to finish:
+
+```
+POST /api/auth/login/totp   {"mfaToken":"...","code":"123456"}
+```
+
+`code` is a six digit authenticator code or an unused backup code. The token lives five minutes and allows five attempts.
+
+Passkey sign-in needs no username. Fetch options, run the browser ceremony (`navigator.credentials.get`), and post the assertion:
+
+```
+POST /api/auth/passkey/begin    {}                      -> {"challengeId":"...","options":{...}}
+POST /api/auth/passkey/finish   {"challengeId":"...","credential":{...}}
+```
+
+`finish` answers exactly like `login`. Passkey management while signed in:
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/account/passkeys` | List passkeys (name, created, last used) |
+| `POST` | `/api/account/passkeys/register/begin` | Creation options for `navigator.credentials.create` |
+| `POST` | `/api/account/passkeys/register/finish` | `{challengeId, name, credential}`; saves the passkey |
+| `PATCH` | `/api/account/passkeys/:id` | `{name}` |
+| `DELETE` | `/api/account/passkeys/:id` | Remove |
+
+Two-factor management while signed in:
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/account/totp/begin` | Returns `secret`, an `otpauth://` URL and a PNG data URL for the QR code |
+| `POST` | `/api/account/totp/enable` | `{code}`; turns it on and returns `backupCodes` once |
+| `POST` | `/api/account/totp/disable` | `{code}`; a current code or a backup code |
+| `POST` | `/api/account/totp/backup-codes` | `{code}`; replaces the backup codes |
+
+`GET /api/auth/me` reports `totpEnabled` and `passkeyCount` on the user. All of these share the auth rate limit tier.
+
 ## Models
 
 `GET /v1/models` (no auth) returns the OpenAI list shape with `name` and `description` added:

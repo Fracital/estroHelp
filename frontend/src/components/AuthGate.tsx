@@ -1,10 +1,11 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 import { api, ApiError } from '../lib/api';
 import { loadMe, user, canChat, nextUrl, type User } from '../lib/auth';
+import { passkeyAutofillAvailable, passkeysSupported, signInWithPasskey } from '../lib/passkeys';
 import '../styles/account.css';
 
-export type GateMode = 'login' | 'register' | 'forgot' | 'reset' | 'verify';
+export type GateMode = 'login' | 'register' | 'forgot' | 'reset' | 'verify' | 'totp';
 
 export interface AuthGateProps {
   icon: ComponentChildren;
@@ -29,6 +30,9 @@ export default function AuthGate({ icon, title = 'Welcome back', subtitle = 'Sig
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const [mfaToken, setMfaToken] = useState('');
+  const [useBackup, setUseBackup] = useState(false);
+  const [passkeyOk, setPasskeyOk] = useState(false);
 
   const switchMode = (next: GateMode) => { setMode(next); setError(''); setNotice(''); };
   const fail = (e: unknown, fallback: string) => {
@@ -36,15 +40,62 @@ export default function AuthGate({ icon, title = 'Welcome back', subtitle = 'Sig
     setError(ae?.data?.ban ? `Banned: ${ae.data.ban.reason || 'no reason given'}` : ae?.message || fallback);
   };
 
+  const signedIn = async () => {
+    await loadMe(true);
+    if (user.value) onDone(user.value);
+  };
+
+  // Conditional UI: a passkey suggestion appears in the username field when the
+  // browser supports it; the pending request is cancelled when the user picks
+  // the button or submits the form instead.
+  useEffect(() => {
+    if (mode !== 'login') return;
+    setPasskeyOk(passkeysSupported());
+    let cancelled = false;
+    passkeyAutofillAvailable().then(async (ok) => {
+      if (!ok || cancelled) return;
+      try { await signInWithPasskey(true); if (!cancelled) await signedIn(); } catch { /* aborted or dismissed */ }
+    });
+    return () => { cancelled = true; };
+  }, [mode]);
+
   const submit = async (e: Event) => {
     e.preventDefault();
     setBusy(true); setError('');
     try {
       const body = mode === 'register' ? { username, password, email } : { username, password };
-      await api(`/api/auth/${mode === 'register' ? 'register' : 'login'}`, { body });
-      await loadMe(true);
-      if (user.value) onDone(user.value);
+      const res = await api<{ mfa?: string; mfaToken?: string }>(`/api/auth/${mode === 'register' ? 'register' : 'login'}`, { body });
+      if (res.mfa === 'totp' && res.mfaToken) {
+        setMfaToken(res.mfaToken); setCode(''); setUseBackup(false); setBusy(false); switchMode('totp');
+        return;
+      }
+      await signedIn();
     } catch (err) { fail(err, 'Something went wrong.'); setBusy(false); }
+  };
+
+  const submitTotp = async (e: Event) => {
+    e.preventDefault();
+    setBusy(true); setError('');
+    try {
+      await api('/api/auth/login/totp', { body: { mfaToken, code: code.trim() } });
+      await signedIn();
+    } catch (err) {
+      const ae = err as ApiError;
+      fail(err, 'Wrong code.');
+      if (ae?.status === 401 && /sign in again/i.test(ae.message)) { switchMode('login'); setPassword(''); }
+      if (ae?.status === 429) { switchMode('login'); setPassword(''); }
+      setBusy(false);
+    }
+  };
+
+  const passkeyLogin = async () => {
+    setBusy(true); setError('');
+    try { await signInWithPasskey(false); await signedIn(); }
+    catch (err) {
+      const name = (err as Error)?.name;
+      if (name !== 'NotAllowedError' && name !== 'AbortError') fail(err, 'Passkey sign-in failed.');
+      setBusy(false);
+    }
   };
 
   const submitForgot = async (e: Event) => {
@@ -102,6 +153,25 @@ export default function AuthGate({ icon, title = 'Welcome back', subtitle = 'Sig
     );
   }
 
+  if (mode === 'totp') {
+    return (
+      <div class="kali-auth-gate">
+        <form class="kali-auth-card" onSubmit={submitTotp}>
+          <div class="kali-auth-mark">{icon}</div>
+          <h1>Two-factor code</h1>
+          <p>{useBackup ? 'Enter one of your backup codes. Each one works once.' : 'Enter the 6-digit code from your authenticator app.'}</p>
+          {useBackup
+            ? <input key="backup" value={code} onInput={(e) => setCode((e.target as HTMLInputElement).value)} placeholder="Backup code" autoComplete="off" autoFocus />
+            : <input key="totp" value={code} onInput={(e) => setCode((e.target as HTMLInputElement).value.replace(/\D/g, ''))} placeholder="6-digit code" inputMode="numeric" maxLength={6} autoComplete="one-time-code" autoFocus />}
+          {error && <span class="kali-auth-error">{error}</span>}
+          <button type="submit" disabled={busy || (useBackup ? code.trim().length < 8 : code.length !== 6)}>{busy ? 'Checking…' : 'Continue'}</button>
+          <button type="button" class="kali-auth-switch" onClick={() => { setUseBackup(!useBackup); setCode(''); setError(''); }}>{useBackup ? 'Use the authenticator app' : 'Use a backup code'}</button>
+          <button type="button" class="kali-auth-switch" onClick={() => { switchMode('login'); setPassword(''); }}>Back to sign in</button>
+        </form>
+      </div>
+    );
+  }
+
   if (mode === 'forgot') {
     return (
       <div class="kali-auth-gate">
@@ -143,7 +213,7 @@ export default function AuthGate({ icon, title = 'Welcome back', subtitle = 'Sig
         <h1>{mode === 'login' ? title : 'Create an account'}</h1>
         <p>{mode === 'login' ? subtitle : 'Pick a username and an 8+ character password. A verification code goes to your email.'}</p>
         {notice && <span class="kali-auth-error" style={{ color: '#8fe6a8' }}>{notice}</span>}
-        <input value={username} onInput={(e) => setUsername((e.target as HTMLInputElement).value)} placeholder={mode === 'login' ? 'Username or email' : 'Username'} autoComplete="username" autoFocus />
+        <input value={username} onInput={(e) => setUsername((e.target as HTMLInputElement).value)} placeholder={mode === 'login' ? 'Username or email' : 'Username'} autoComplete={mode === 'login' ? 'username webauthn' : 'username'} autoFocus />
         {mode === 'register' && (
           <input type="email" value={email} onInput={(e) => setEmail((e.target as HTMLInputElement).value)} placeholder="Email" autoComplete="email" required />
         )}
@@ -152,7 +222,7 @@ export default function AuthGate({ icon, title = 'Welcome back', subtitle = 'Sig
         <button type="submit" disabled={busy || !username || !password || (mode === 'register' && !email)}>
           {busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Sign up'}
         </button>
-        {mode === 'login' && <button type="button" class="kali-auth-switch" disabled title="Passkeys are not available yet">Sign in with a passkey</button>}
+        {mode === 'login' && <button type="button" class="kali-auth-switch" disabled={busy || !passkeyOk} title={passkeyOk ? 'Use a passkey saved on this device' : 'This browser does not support passkeys'} onClick={passkeyLogin}>Sign in with a passkey</button>}
         {mode === 'login' && <button type="button" class="kali-auth-switch" onClick={() => switchMode('forgot')}>Forgot password?</button>}
         <button type="button" class="kali-auth-switch" onClick={() => switchMode(mode === 'login' ? 'register' : 'login')}>
           {mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}

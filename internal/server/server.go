@@ -31,6 +31,8 @@ func New(d Deps) http.Handler {
 	mux := http.NewServeMux()
 	d.Auth.Register(mux)
 	d.Auth.RegisterAPIKeys(mux)
+	d.Auth.RegisterPasskeys(mux)
+	d.Auth.RegisterTOTP(mux)
 	d.Admin.Register(mux)
 	d.Chat.Register(mux)
 	d.Chat.RegisterThreads(mux)

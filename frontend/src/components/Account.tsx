@@ -6,6 +6,8 @@ import { api } from '../lib/api';
 import { authReady, loadMe, logout, user, requireVerifiedEmail, type User as KaliUser } from '../lib/auth';
 import { load } from '../lib/preferences';
 import AuthGate, { LegalFooter } from './AuthGate';
+import SecurityPasskeys from './SecurityPasskeys';
+import SecurityTotp from './SecurityTotp';
 import '../styles/account.css';
 
 interface Session { id: string; created: string; lastSeen: string; ip: string | null; userAgent: string | null; current: boolean; }
@@ -304,11 +306,9 @@ function SecuritySection({ onChanged }: { onChanged: () => void }) {
           </div>
         </form>
       )}
-      <div class="settings-row">
-        <span><strong>Passkeys</strong><small>Sign in with device biometrics or a security key.</small></span>
-        <div class="settings-row-actions"><button class="settings-action" type="button" disabled>Coming soon</button></div>
-      </div>
       {(notice.ok || notice.err) && <div class="account-card-foot"><Notice notice={notice} /></div>}
+      <SecurityPasskeys onChanged={onChanged} />
+      <SecurityTotp enabled={!!user.value?.totpEnabled} onChanged={onChanged} />
     </Section>
   );
 }

@@ -144,6 +144,11 @@ func (h *Handlers) login(w http.ResponseWriter, r *http.Request) {
 		WriteJSON(w, 403, map[string]any{"error": "account banned", "ban": ban})
 		return
 	}
+	if st, err := h.Store.totpState(r.Context(), id); err == nil && st.Enabled {
+		// Password accepted; no session until the second factor is answered.
+		WriteJSON(w, 200, map[string]any{"mfa": "totp", "mfaToken": newMFAToken(id)})
+		return
+	}
 	h.finishLogin(w, r, id)
 }
 
@@ -162,6 +167,7 @@ func (h *Handlers) me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ban, _ := h.Store.ActiveBan(r.Context(), u.ID)
+	u.PasskeyCount = h.Store.PasskeyCount(r.Context(), u.ID)
 	WriteJSON(w, 200, map[string]any{"user": u, "ban": ban, "requireVerifiedEmail": h.RequireVerifiedEmail})
 }
 

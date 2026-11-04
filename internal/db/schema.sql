@@ -106,3 +106,35 @@ CREATE TABLE IF NOT EXISTS api_key (
     last_used TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS api_key_user_idx ON api_key(user_id);
+
+-- Account security: passkeys (WebAuthn credentials) and TOTP two-factor.
+CREATE TABLE IF NOT EXISTS passkey (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    credential_id BYTEA NOT NULL UNIQUE,
+    public_key BYTEA NOT NULL,
+    aaguid BYTEA,
+    sign_count BIGINT NOT NULL DEFAULT 0,
+    transports TEXT[] NOT NULL DEFAULT '{}',
+    attestation_type TEXT NOT NULL DEFAULT '',
+    backup_eligible BOOLEAN NOT NULL DEFAULT FALSE,
+    name TEXT NOT NULL DEFAULT 'Passkey',
+    created TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_used TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS passkey_user_idx ON passkey(user_id);
+
+-- One row per in-flight WebAuthn ceremony; consumed on finish, swept on expiry.
+CREATE TABLE IF NOT EXISTS webauthn_challenge (
+    id TEXT PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    challenge BYTEA NOT NULL,
+    session_data JSONB NOT NULL,
+    expires TIMESTAMPTZ NOT NULL
+);
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_backup_codes TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_pending_secret TEXT;

@@ -38,6 +38,10 @@ func limits(next http.Handler) http.Handler {
 		var lim *ratelimit.Limiter
 		var key, body string
 		switch {
+		// Minting a passkey challenge happens on every sign-in page load
+		// (conditional UI) and cannot be brute-forced, so it takes the app tier.
+		case path == "/api/auth/passkey/begin":
+			lim, key, body = appLimit, "ip:"+auth.RequestIP(r), plainBody
 		case strings.HasPrefix(path, "/api/auth/") && r.Method != http.MethodGet:
 			lim, key, body = authLimit, "ip:"+auth.RequestIP(r), plainBody
 		case strings.HasPrefix(path, "/v1/") && r.Method != http.MethodGet:

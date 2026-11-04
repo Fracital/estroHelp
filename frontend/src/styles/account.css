@@ -1357,3 +1357,23 @@
   background: color-mix(in srgb, var(--theme-fg) 8%, transparent); border: 1px solid color-mix(in srgb, var(--theme-fg) 14%, transparent);
 }
 .account-key-prefix { margin-left: 6px; font-size: 11.5px; font-weight: 400; color: var(--ui-text-muted); }
+
+/* ---------- account security: passkeys and two-factor ---------- */
+.account-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--ui-border); }
+.account-list-row { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--ui-border); }
+.account-list-icon { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--ui-glass); color: var(--ui-accent); flex: none; }
+.account-list-main { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.account-list-main strong { font-size: 14px; }
+.account-list-main small { color: var(--ui-text-subtle); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-list-actions { display: flex; gap: 6px; flex: none; }
+.account-totp-grid { display: grid; grid-template-columns: 180px 1fr; gap: 20px; align-items: start; }
+.account-totp-grid p { margin: 0 0 8px; font-size: 13px; color: var(--ui-text-subtle); }
+.account-qr { border-radius: 10px; background: #fff; padding: 6px; width: 180px; height: 180px; }
+.account-secret { display: inline-block; margin: 0 0 12px; padding: 6px 10px; border-radius: 6px; background: var(--ui-glass); font-family: var(--font-mono); font-size: 13px; letter-spacing: .06em; word-break: break-all; }
+.account-backup p { margin: 0 0 10px; font-size: 13px; color: var(--ui-text-subtle); }
+.account-codes { list-style: none; margin: 0 0 12px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
+.account-codes code { display: block; padding: 6px 10px; border-radius: 6px; background: var(--ui-glass); font-family: var(--font-mono); font-size: 13px; letter-spacing: .04em; }
+@media (max-width: 640px) {
+  .account-totp-grid { grid-template-columns: 1fr; }
+  .account-list-row { flex-wrap: wrap; }
+}

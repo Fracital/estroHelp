@@ -84,7 +84,7 @@ func (a *Admin) listUsers(w http.ResponseWriter, r *http.Request) {
 		var au adminUser
 		var reason *string
 		var expires *time.Time
-		if err := rows.Scan(&au.ID, &au.Username, &au.Email, &au.EmailVerified, &au.Admin, &au.Sandbox, &au.Created, &au.LastLogin,
+		if err := rows.Scan(&au.ID, &au.Username, &au.Email, &au.EmailVerified, &au.Admin, &au.Sandbox, &au.Created, &au.LastLogin, &au.TotpEnabled,
 			&au.RequestsToday, &au.Threads, &reason, &expires); err != nil {
 			WriteError(w, 500, err.Error())
 			return

@@ -26,6 +26,12 @@ All configuration is environment variables. `.env` in the working directory is l
 
 A rate value is `perMinute` or `perMinute,burst`; `0` disables that tier. Buckets are per process.
 
+### Security
+
+`SESSION_SECRET` (optional) signs the short-lived token used between a password and its two-factor code. Set it to a long random string so that step survives a restart; unset, a random secret is generated per process.
+
+`PUBLIC_HOST` also fixes the WebAuthn relying party id and origin for passkeys. Without it the request host is used, which is fine on `localhost` but must be set behind a real domain.
+
 ## Kali Gamma and Kali Beta
 
 These two models are served through an HTTP relay provider.

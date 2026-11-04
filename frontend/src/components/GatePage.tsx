@@ -28,6 +28,7 @@ export default function GatePage({ mode }: { mode: GateMode }) {
     forgot: ['Reset your password', ''],
     reset: ['Choose a new password', ''],
     verify: ['Check your inbox', ''],
+    totp: ['Two-factor code', ''],
   };
   const [title, subtitle] = titles[mode];
   return (

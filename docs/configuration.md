@@ -92,6 +92,11 @@ Kali Epsilon's browser workers each lease their own chat.z.ai account from the `
 | --- | --- | --- |
 | `ZAI_ACCOUNT_POOL` | `true` | Set to `false` to use only the shared `ZAI_TOKEN` / `zai_config.json` account. |
 | `ZAI_ACCOUNT_POOL_TARGET` | browser pool size + 1 | Healthy accounts the filler maintains; `0` disables provisioning but still leases existing rows. |
+| `EMAILNATOR_TOKEN` | unset | Bearer token for premium.emailnator.com. First choice for signup mailboxes: z.ai accepts its private Gmail aliases. |
+| `SMAILPRO_TOKEN` | unset | smailpro.com session cookie (`XSRF-TOKEN=...; sonjj_session=...`). A free-tier session also needs a funded `TWOCAPTCHA_API_KEY`. |
+| `ZAI_SIGNUP_MAIL` | `emailnator,smailpro,emailmux,temptf,mailtm` | Mailbox providers tried in order; z.ai answers `EMAIL_DOMAIN_BLOCKED` for disposable domains and heavily dotted aliases, which moves on to the next. |
+| `ZAI_SIGNUP_CAPTCHA_ATTEMPTS` | `8` | Slider puzzles attempted per signup. The solver (masked correlation plus inside-vs-ring smoothness over the inpainted gap) passes roughly one in two. |
+| `ZAI_SIGNUP_DUMP_DIR` | unset | Saves each puzzle pair, an `attempts.jsonl` with the chosen offset and verdict, and screenshots of each stage. |
 | `ZAI_SIGNUP_SCRIPT` | `ext/zai_signup.py` | Path to the signup driver. |
 | `ZAI_SIGNUP_PROXY` | unset | SOCKS5 proxy for signups; with `ZAI_BROWSER_PROXY=mullvad` a live relay is used. |
 

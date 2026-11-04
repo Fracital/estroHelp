@@ -11,3 +11,4 @@ server.log
 frontend/public/dusk/
 __pycache__/
 build/
+smailpro_session.json

@@ -216,7 +216,7 @@ func TestZaiBrowserTransportRetriesOnBlockedRelay(t *testing.T) {
 	zaiBrowserPoolInstance = pool
 	t.Cleanup(func() { zaiBrowserPoolInstance = oldPool })
 
-	res, err := zaiRunBrowserTransport(context.Background(), "m", "x", false)
+	res, err := zaiRunBrowserTransport(context.Background(), "m", "x", false, "")
 	if err != nil || !strings.HasSuffix(res.Answer, ":socks5://fresh.relay:1080") {
 		t.Fatalf("turn not retried on a fresh relay: %v %+v", err, res)
 	}

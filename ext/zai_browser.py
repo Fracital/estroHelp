@@ -223,6 +223,7 @@ class ZaiBrowser:
         self._abandoned = 0
         self._native_tools = []
         self._emit = None  # set per turn to stream answer deltas
+        self._reasoning_effort = None  # set per turn; the client's level when thinking is on
         self._committed = False
         self._reset_turn(None)
 
@@ -344,8 +345,10 @@ class ZaiBrowser:
             # Without an explicit effort the model still reasons 20-37KB per
             # turn and enters its native tool loop (3/3, live); "low" answered
             # 11/12 in ~10s. "none" and "minimal" were no better than absent.
+            # The client's level wins when thinking is on; otherwise the configured defaults.
+            effort = self._pending.get("reasoning_effort")
             if thinking:
-                feats["reasoning_effort"] = os.environ.get("ZAI_REASONING_EFFORT", "medium")
+                feats["reasoning_effort"] = effort or os.environ.get("ZAI_REASONING_EFFORT", "medium")
             else:
                 feats["reasoning_effort"] = os.environ.get("ZAI_REASONING_EFFORT_OFF", "low")
             body["features"] = feats
@@ -451,10 +454,11 @@ class ZaiBrowser:
         except Exception:
             self._goto_home()
 
-    def turn(self, prompt, model="", enable_thinking=True, timeout=600, emit=None):
+    def turn(self, prompt, model="", enable_thinking=True, timeout=600, emit=None, reasoning_effort=None):
         if not prompt.strip():
             return {"ok": False, "error": "empty prompt"}
         self._emit, self._committed = emit, False
+        self._reasoning_effort = reasoning_effort
         deadline = time.time() + timeout
         retries = max(0, int(_env_num("ZAI_STALL_RETRIES", 5)))
         attempt = guests = 0
@@ -493,7 +497,7 @@ class ZaiBrowser:
         # Reset first: a chats/new fired while switching chats must not see the last turn's prompt.
         self._reset_turn(None)
         self._new_chat()
-        self._reset_turn({"prompt": prompt, "model": model, "enable_thinking": enable_thinking})
+        self._reset_turn({"prompt": prompt, "model": model, "enable_thinking": enable_thinking, "reasoning_effort": self._reasoning_effort})
         box = self._page.locator(_COMPOSER).first
         # A product tour (driver.js) can still cover the page; Escape closes it.
         if self._page.locator(".driver-overlay").count():
@@ -630,7 +634,8 @@ def main():
                         sys.stdout.write(json.dumps({kind: text}) + "\n")
                         sys.stdout.flush()
                     res = zb.turn(t.get("prompt", ""), t.get("model", ""), t.get("enable_thinking", True),
-                                  int(t.get("timeout", 600)), emit if t.get("stream") else None)
+                                  int(t.get("timeout", 600)), emit if t.get("stream") else None,
+                                  reasoning_effort=t.get("reasoning_effort"))
                 except Exception as err:
                     res = {"ok": False, "error": _redact(str(err), proxy)[:300]}
                 sys.stdout.write(json.dumps(res) + "\n")

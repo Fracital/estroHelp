@@ -71,8 +71,19 @@ type zaiRequest struct {
 	model    string
 	prompt   string
 	thinking bool
-	stream   bool
-	tools    map[string]bool // declared tool names, for the parser
+	// effort is the client's reasoning level (low, medium, high) or "" for the default.
+	effort string
+	stream bool
+	tools  map[string]bool // declared tool names, for the parser
+}
+
+// zaiEffort keeps a client reasoning level the upstream understands.
+func zaiEffort(effort string) string {
+	switch strings.ToLower(strings.TrimSpace(effort)) {
+	case "low", "medium", "high":
+		return strings.ToLower(strings.TrimSpace(effort))
+	}
+	return ""
 }
 
 func zaiToolNames(raw json.RawMessage) map[string]bool {
@@ -105,7 +116,7 @@ func zaiParseMessagesRequest(body []byte) (*zaiRequest, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &zaiRequest{req.Model, prompt, zaiThinkingEnabled(req.Thinking.Type, ""), req.Stream, zaiToolNames(req.Tools)}, nil
+	return &zaiRequest{model: req.Model, prompt: prompt, thinking: zaiThinkingEnabled(req.Thinking.Type, ""), stream: req.Stream, tools: zaiToolNames(req.Tools)}, nil
 }
 
 func handleZaiChatCompletions(w http.ResponseWriter, r *http.Request, apiKey string) {
@@ -127,7 +138,7 @@ func zaiParseChatRequest(body []byte) (*zaiRequest, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &zaiRequest{req.Model, prompt, zaiThinkingEnabled("", req.ReasoningEffort), req.Stream, zaiToolNames(req.Tools)}, nil
+	return &zaiRequest{model: req.Model, prompt: prompt, thinking: zaiThinkingEnabled("", req.ReasoningEffort), effort: zaiEffort(req.ReasoningEffort), stream: req.Stream, tools: zaiToolNames(req.Tools)}, nil
 }
 
 func handleZaiResponses(w http.ResponseWriter, r *http.Request, apiKey string) {
@@ -157,7 +168,7 @@ func handleZaiResponses(w http.ResponseWriter, r *http.Request, apiKey string) {
 		if err != nil {
 			return nil, err
 		}
-		return &zaiRequest{req.Model, prompt, zaiThinkingEnabled("", req.Reasoning.Effort), req.Stream, zaiToolNames(req.Tools)}, nil
+		return &zaiRequest{model: req.Model, prompt: prompt, thinking: zaiThinkingEnabled("", req.Reasoning.Effort), effort: zaiEffort(req.Reasoning.Effort), stream: req.Stream, tools: zaiToolNames(req.Tools)}, nil
 	})
 }
 
@@ -212,7 +223,7 @@ func zaiServeBody(w http.ResponseWriter, r *http.Request, body []byte, face zaiF
 		})
 	}
 	run := func() (*zaiReply, error) {
-		res, err := zaiRunCompletionFunc(ctx, zaiMapModel(req.model), req.prompt, req.thinking)
+		res, err := zaiRunCompletionFunc(ctx, zaiMapModel(req.model), req.prompt, req.thinking, req.effort)
 		if err != nil {
 			return nil, err
 		}

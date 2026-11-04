@@ -550,18 +550,18 @@ func zaiTransport() string {
 }
 
 // zaiRunCompletion dispatches to the configured transport.
-func zaiRunCompletion(ctx context.Context, upstreamModel, prompt string, enableThinking bool) (*zaiStreamResult, error) {
+func zaiRunCompletion(ctx context.Context, upstreamModel, prompt string, enableThinking bool, effort string) (*zaiStreamResult, error) {
 	if zaiTransport() == "patchright" {
-		return zaiRunBrowserTransport(ctx, upstreamModel, prompt, enableThinking)
+		return zaiRunBrowserTransport(ctx, upstreamModel, prompt, enableThinking, effort)
 	}
-	return zaiRunBrowserless(ctx, upstreamModel, prompt, enableThinking)
+	return zaiRunBrowserless(ctx, upstreamModel, prompt, enableThinking, effort)
 }
 
 // zaiRunBrowserless executes one completion turn without a local browser: mint
 // session, solve captcha, sign, POST, and collect the SSE stream. On a
 // FRONTEND_CAPTCHA_REQUIRED frame it re-solves the captcha and retries once.
 // On 401 it re-mints the session.
-func zaiRunBrowserless(ctx context.Context, upstreamModel, prompt string, enableThinking bool) (*zaiStreamResult, error) {
+func zaiRunBrowserless(ctx context.Context, upstreamModel, prompt string, enableThinking bool, effort string) (*zaiStreamResult, error) {
 	sess, err := zaiGetSession(ctx)
 	if err != nil {
 		return nil, err
@@ -594,7 +594,7 @@ func zaiRunBrowserless(ctx context.Context, upstreamModel, prompt string, enable
 				"vlm_website_mode":      false,
 				"enable_thinking":       enableThinking,
 				// Without it the model reasons at length even with thinking off (see ext/zai_browser.py).
-				"reasoning_effort": map[bool]string{true: "medium", false: "low"}[enableThinking],
+				"reasoning_effort": zaiEffortFor(enableThinking, effort),
 			},
 			ChatID:                 generateUUID(),
 			ID:                     generateUUID(),
@@ -712,4 +712,23 @@ func zaiMapModel(public string) string {
 		return "x-preview-l"
 	}
 	return public
+}
+
+// zaiEffortFor is the reasoning_effort sent upstream: the client's level when
+// thinking is on and one was given, otherwise the configured defaults.
+func zaiEffortFor(enableThinking bool, effort string) string {
+	if enableThinking && effort != "" {
+		return effort
+	}
+	if enableThinking {
+		return zaiEnvOr("ZAI_REASONING_EFFORT", "medium")
+	}
+	return zaiEnvOr("ZAI_REASONING_EFFORT_OFF", "low")
+}
+
+func zaiEnvOr(key, def string) string {
+	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+		return v
+	}
+	return def
 }

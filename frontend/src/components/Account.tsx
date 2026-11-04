@@ -306,10 +306,10 @@ function ApiKeysSection() {
         </form>
       )}
       {secret && (
-        <div class="account-secret" role="status">
+        <div class="account-newkey" role="status">
           <strong>New key “{secret.name}”</strong>
           <small>Copy it now. It is not stored and cannot be shown again.</small>
-          <div class="account-secret-row">
+          <div class="account-newkey-row">
             <code>{secret.value}</code>
             <button class="settings-action" type="button" onClick={copy}>{copied ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy</>}</button>
             <button class="settings-action" type="button" onClick={() => setSecret(null)}>Done</button>

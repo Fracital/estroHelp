@@ -25,7 +25,7 @@ func newZaiTestServer(t *testing.T, run func(ctx context.Context) (*zaiStreamRes
 	ts := &zaiTestServer{}
 	oldRun, oldPing := zaiRunCompletionFunc, zaiStreamPingInterval
 	zaiStreamPingInterval = 50 * time.Millisecond
-	zaiRunCompletionFunc = func(ctx context.Context, _ string, prompt string, thinking bool) (*zaiStreamResult, error) {
+	zaiRunCompletionFunc = func(ctx context.Context, _ string, prompt string, thinking bool, _ string) (*zaiStreamResult, error) {
 		ts.prompt, ts.thinking = prompt, thinking
 		return run(ctx)
 	}

@@ -41,11 +41,12 @@ const (
 
 // zaiBrowserTurn is one stdin line for the script.
 type zaiBrowserTurn struct {
-	Model          string `json:"model"`
-	Prompt         string `json:"prompt"`
-	EnableThinking bool   `json:"enable_thinking"`
-	Timeout        int    `json:"timeout"`
-	Stream         bool   `json:"stream,omitempty"`
+	Model           string `json:"model"`
+	Prompt          string `json:"prompt"`
+	EnableThinking  bool   `json:"enable_thinking"`
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+	Timeout         int    `json:"timeout"`
+	Stream          bool   `json:"stream,omitempty"`
 }
 
 // zaiBrowserResult is one stdout line from the script.
@@ -66,9 +67,9 @@ type zaiBrowserResult struct {
 	} `json:"usage"`
 }
 
-func zaiRunBrowserTransport(ctx context.Context, upstreamModel, prompt string, enableThinking bool) (*zaiStreamResult, error) {
+func zaiRunBrowserTransport(ctx context.Context, upstreamModel, prompt string, enableThinking bool, effort string) (*zaiStreamResult, error) {
 	onDelta := zaiDeltaFunc(ctx)
-	turn, _ := json.Marshal(zaiBrowserTurn{Model: upstreamModel, Prompt: prompt, EnableThinking: enableThinking,
+	turn, _ := json.Marshal(zaiBrowserTurn{Model: upstreamModel, Prompt: prompt, EnableThinking: enableThinking, ReasoningEffort: effort,
 		Timeout: zaiBrowserTurnSeconds, Stream: onDelta != nil})
 	out, err := zaiGetBrowserPool().send(ctx, turn, onDelta)
 	// No request reached z.ai on a blocked relay; the worker has moved to a

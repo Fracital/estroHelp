@@ -216,3 +216,15 @@ CREATE TABLE IF NOT EXISTS estro_subscription (
     updated TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS estro_subscription_sub_idx ON estro_subscription (subscription_id);
+
+-- Responses API chain: the items of every relayed /v1/responses reply, so a
+-- request naming previous_response_id can be sent with its history after a
+-- restart or from another process. Rows expire after two hours.
+CREATE TABLE IF NOT EXISTS response_chain (
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    response_id TEXT NOT NULL,
+    items JSONB NOT NULL,
+    created TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, response_id)
+);
+CREATE INDEX IF NOT EXISTS response_chain_created_idx ON response_chain (created);

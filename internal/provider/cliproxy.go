@@ -88,7 +88,7 @@ func (c *CliProxy) Serve(w http.ResponseWriter, r *http.Request, dialect Dialect
 		if r.Context().Err() != nil {
 			return 0
 		}
-		slog.Warn("cliproxy upstream", "err", err)
+		DumpFailure(r, dialect, c.BaseURL+path, body, 0, nil, nil, err)
 		relay.WriteTransportFailure(w, shape)
 		return 0
 	}
@@ -96,7 +96,7 @@ func (c *CliProxy) Serve(w http.ResponseWriter, r *http.Request, dialect Dialect
 
 	if resp.StatusCode >= 400 {
 		text, _ := io.ReadAll(io.LimitReader(resp.Body, errorTextMax))
-		slog.Warn("cliproxy upstream error", "status", resp.StatusCode, "dialect", dialect, "body", truncate(string(text), 400))
+		DumpFailure(r, dialect, c.BaseURL+path, body, resp.StatusCode, resp.Header, text, nil)
 		relay.WriteUpstreamFailure(w, shape, responsesStream, resp.StatusCode, text, resp.Header)
 		return resp.StatusCode
 	}

@@ -145,6 +145,10 @@ func (c *Chat) responses(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	if repaired, n := repairResponsesOrphans(inputItems(clientInput)); n > 0 {
+		slog.Warn("responses: folded orphaned tool results into user turns", "user", u.Username, "count", n)
+		clientInput, _ = json.Marshal(repaired)
+	}
 	sanitizeResponses(passthrough, p)
 	instructions, input := p.ApplyResponses(req.Instructions, clientInput)
 	passthrough["instructions"], _ = json.Marshal(instructions)

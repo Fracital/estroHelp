@@ -29,6 +29,7 @@ type Chat struct {
 }
 
 func (c *Chat) Register(mux *http.ServeMux) {
+	chainDB = c.DB
 	mux.HandleFunc("POST /v1/chat/completions", auth.RequireUser(c.completions))
 	mux.HandleFunc("POST /v1/completions", c.passthrough(provider.Completions))
 	mux.HandleFunc("POST /v1/embeddings", c.passthrough(provider.Embeddings))
@@ -112,6 +113,10 @@ func (c *Chat) completions(w http.ResponseWriter, r *http.Request) {
 		promptChars += len(m)
 	}
 	sanitizeChat(passthrough, p, req.Stream)
+	if repaired, n := repairChatOrphans(req.Messages); n > 0 {
+		slog.Warn("chat: folded orphaned tool results into user turns", "user", u.Username, "count", n)
+		req.Messages = repaired
+	}
 	applied, _ := json.Marshal(p.Apply(req.Messages))
 	passthrough["messages"] = applied
 	passthrough["model"], _ = json.Marshal(p.BaseModel)

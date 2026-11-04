@@ -1,10 +1,17 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"log/slog"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+
+	"elichat/internal/db"
 )
 
 // Responses API chaining, ported from abulxt. The upstream keeps no past
@@ -66,19 +73,78 @@ func inputItems(input json.RawMessage) []json.RawMessage {
 	return nil
 }
 
+// chainDB, when set, backs the in-memory store with the response_chain table
+// so a restart or a second process does not lose the chain and reject the
+// client's next tool results.
+var chainDB *db.DB
+
 // chainInput returns the stored items of previousID followed by input, or nil
 // when the relay has no such response for this user.
 func chainInput(userID int, previousID string, input json.RawMessage) []json.RawMessage {
 	chainMu.Lock()
-	defer chainMu.Unlock()
 	chainPrune(time.Now())
 	e, ok := chainStore[chainKey(userID, previousID)]
+	chainMu.Unlock()
 	if !ok {
-		return nil
+		e = chainLoad(userID, previousID)
+		if e == nil {
+			return nil
+		}
 	}
 	out := make([]json.RawMessage, 0, len(e.items)+4)
 	out = append(out, e.items...)
 	return append(out, inputItems(input)...)
+}
+
+// chainLoad reads one response's items from the table and caches them.
+func chainLoad(userID int, previousID string) *storedResponse {
+	if chainDB == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	var raw []byte
+	var at time.Time
+	err := chainDB.QueryRow(ctx, `SELECT items, created FROM response_chain WHERE user_id=$1 AND response_id=$2 AND created > now() - $3::interval`,
+		userID, previousID, chainTTL.String()).Scan(&raw, &at)
+	if err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			slog.Warn("response chain: load failed", "err", err)
+		}
+		return nil
+	}
+	var items []json.RawMessage
+	if json.Unmarshal(raw, &items) != nil {
+		return nil
+	}
+	e := &storedResponse{items: items, at: at}
+	k := chainKey(userID, previousID)
+	chainMu.Lock()
+	if _, exists := chainStore[k]; !exists {
+		chainOrder = append(chainOrder, k)
+	}
+	chainStore[k] = e
+	chainMu.Unlock()
+	return e
+}
+
+// chainPersist writes one response's items to the table and prunes expired rows.
+func chainPersist(userID int, responseID string, items []json.RawMessage) {
+	if chainDB == nil {
+		return
+	}
+	raw, err := json.Marshal(items)
+	if err != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := chainDB.Exec(ctx, `INSERT INTO response_chain (user_id, response_id, items) VALUES ($1,$2,$3)
+		ON CONFLICT (user_id, response_id) DO UPDATE SET items=EXCLUDED.items, created=now()`, userID, responseID, raw); err != nil {
+		slog.Warn("response chain: persist failed", "err", err)
+		return
+	}
+	chainDB.Exec(ctx, `DELETE FROM response_chain WHERE created < now() - $1::interval`, chainTTL.String())
 }
 
 func storedResponseCount() int {
@@ -104,6 +170,7 @@ func rememberResponse(userID int, responseID string, input, output []json.RawMes
 	}
 	chainStore[k] = &storedResponse{items: items, at: now}
 	chainPrune(now)
+	go chainPersist(userID, responseID, items)
 }
 
 // responseRecorder reads a relayed Responses reply (streamed events or one

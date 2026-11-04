@@ -52,7 +52,7 @@ func New(d Deps) http.Handler {
 	relay.AllowHosts = d.SelfHosts
 	mux.Handle("/wisp", relay)
 	mux.Handle("/", newStatic(d.StaticDir))
-	return logRequests(d.Store.Authenticate(limits(mux)))
+	return logRequests(v1Front(d.Store.Authenticate(limits(mux))))
 }
 
 type statusWriter struct {

@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"elichat/internal/relay"
 )
 
 type ctxKey int
@@ -25,6 +27,22 @@ func WriteJSON(w http.ResponseWriter, status int, v any) {
 
 func WriteError(w http.ResponseWriter, status int, msg string) {
 	WriteJSON(w, status, map[string]any{"error": msg})
+}
+
+// writeAuthError answers an authentication failure in the caller's dialect:
+// the app's plain shape under /api, the OpenAI envelope under /v1 and the
+// Anthropic one on /v1/messages, with abulxt's wording for API callers.
+func writeAuthError(w http.ResponseWriter, r *http.Request, status int, appMsg, apiMsg string) {
+	path := r.URL.Path
+	if !strings.HasPrefix(path, "/v1/") {
+		WriteError(w, status, appMsg)
+		return
+	}
+	shape := relay.OpenAI
+	if strings.HasPrefix(path, "/v1/messages") {
+		shape = relay.Anthropic
+	}
+	relay.WriteError(w, shape, status, relay.AnthropicErrorType(status), apiMsg, nil)
 }
 
 func ReadJSON(r *http.Request, v any) error {
@@ -79,7 +97,7 @@ func (s *Store) Authenticate(next http.Handler) http.Handler {
 		if token != "" && !viaCookie && IsAPIKey(token) {
 			u, err := s.UserForAPIKey(r.Context(), token)
 			if err != nil {
-				WriteError(w, http.StatusUnauthorized, "invalid API key")
+				writeAuthError(w, r, http.StatusUnauthorized, "invalid API key", "invalid API key")
 				return
 			}
 			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userKey, u)))
@@ -98,7 +116,7 @@ func (s *Store) Authenticate(next http.Handler) http.Handler {
 				ctx = context.WithValue(ctx, sessionKey, hash)
 				r = r.WithContext(ctx)
 			} else if !viaCookie {
-				WriteError(w, http.StatusUnauthorized, "invalid or expired token")
+				writeAuthError(w, r, http.StatusUnauthorized, "invalid or expired token", "invalid API key")
 				return
 			}
 		}
@@ -109,7 +127,7 @@ func (s *Store) Authenticate(next http.Handler) http.Handler {
 func RequireUser(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if UserFrom(r.Context()) == nil {
-			WriteError(w, http.StatusUnauthorized, "sign in required")
+			writeAuthError(w, r, http.StatusUnauthorized, "sign in required", "missing API key")
 			return
 		}
 		next(w, r)

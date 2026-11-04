@@ -86,23 +86,92 @@ func Resolve(model string) (*Persona, bool) {
 	return p, ok
 }
 
+// ThinkingFor decides what reasoning level to forward for a client's request.
+// "off" and "none" are forwarded only when the model can switch thinking off;
+// any other level is kept only when the model lists it. ok=false means the
+// field is dropped so the upstream picks its default.
+func (p *Persona) ThinkingFor(requested string) (string, bool) {
+	r := strings.ToLower(strings.TrimSpace(requested))
+	if r == "off" || r == "none" {
+		if p.ThinkingOff {
+			return "none", true
+		}
+		return "", false
+	}
+	for _, l := range p.Levels {
+		if l == r {
+			return l, true
+		}
+	}
+	return "", false
+}
+
 type message struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-// Apply prepends the persona's system prompt and priming exchange to the
-// client's messages. Client-supplied system messages are kept after ours.
+// primer is the persona's priming exchange, with the system prompt as its
+// request when the persona names none, so every request carries one.
+func (p *Persona) primer() Primer {
+	if p.Primer != nil && p.Primer.Assistant.Content != "" {
+		return *p.Primer
+	}
+	var pr Primer
+	pr.User = p.System
+	pr.Assistant.Content = "Understood. I'll follow these instructions."
+	return pr
+}
+
+// primerMessages renders the primer as chat messages; the assistant turn
+// carries reasoning_content when the primer has reasoning.
+func (p *Persona) primerMessages(withReasoning bool) []json.RawMessage {
+	pr := p.primer()
+	u, _ := json.Marshal(message{Role: "user", Content: pr.User})
+	a := map[string]any{"role": "assistant", "content": pr.Assistant.Content}
+	if withReasoning && pr.Assistant.Reasoning != "" {
+		a["reasoning_content"] = pr.Assistant.Reasoning
+	}
+	ab, _ := json.Marshal(a)
+	return []json.RawMessage{u, ab}
+}
+
+// roleOf reads a message's role without decoding the rest.
+func roleOf(raw json.RawMessage) (string, map[string]json.RawMessage) {
+	var obj map[string]json.RawMessage
+	if json.Unmarshal(raw, &obj) != nil {
+		return "", nil
+	}
+	var role string
+	json.Unmarshal(obj["role"], &role)
+	return role, obj
+}
+
+// Apply builds the chat message list: the persona's prompt is the only system
+// message, followed by its primer. Client system and developer turns are
+// dropped (the persona replaces them), user turns are cleaned of harness text
+// and dropped when nothing remains, assistant and tool turns pass through.
 func (p *Persona) Apply(messages []json.RawMessage) []json.RawMessage {
 	out := make([]json.RawMessage, 0, len(messages)+3)
-	add := func(role, content string) {
-		b, _ := json.Marshal(message{Role: role, Content: content})
-		out = append(out, b)
+	sys, _ := json.Marshal(message{Role: "system", Content: p.System})
+	out = append(out, sys)
+	out = append(out, p.primerMessages(true)...)
+	for _, raw := range messages {
+		role, obj := roleOf(raw)
+		switch role {
+		case "system", "developer":
+			continue
+		case "user":
+			cleaned := CleanUserContent(obj["content"])
+			if cleaned == nil {
+				continue
+			}
+			obj["content"] = cleaned
+			b, _ := json.Marshal(obj)
+			out = append(out, b)
+		default:
+			out = append(out, raw)
+		}
 	}
-	add("system", p.System)
-	if p.Primer != nil && p.Primer.Assistant.Content != "" {
-		add("user", p.Primer.User)
-		add("assistant", p.Primer.Assistant.Content)
-	}
-	return append(out, messages...)
+	return out
 }

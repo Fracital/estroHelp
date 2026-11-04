@@ -215,6 +215,10 @@ func zaiServeBody(w http.ResponseWriter, r *http.Request, body []byte, face zaiF
 			case <-ctx.Done():
 			}
 		})
+	}
+	// The upstream reasons regardless of enable_thinking for some models; a
+	// client that switched thinking off never sees that reasoning either way.
+	if req.stream && req.thinking {
 		ctx = zaiWithThinking(ctx, func(s string) {
 			select {
 			case thinks <- s:

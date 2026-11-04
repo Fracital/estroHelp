@@ -68,7 +68,7 @@ Two-factor management while signed in:
 
 ## Models
 
-`GET /v1/models` (no auth) returns the OpenAI list shape with `name` and `description` added:
+`GET /v1/models` (no auth) returns the OpenAI list shape with OpenRouter-style detail on each record: `name`, `description`, `context_length`, `max_completion_tokens`, `architecture.input_modalities`, `top_provider`, `supported_parameters`, `thinking_levels`, `thinking_off`, `pricing` (zeros; plans are flat), `billing.multiplier` and `requires_plan`. A key without an active plan sees only the free models. `/v1/v1/...` is accepted for clients whose base URL already ends in `/v1`.
 
 | id | Name | Best for |
 |---|---|---|
@@ -92,15 +92,19 @@ curl -N https://estro.help/v1/chat/completions \
 
 Non-streaming responses are `chat.completion` objects. Streaming responses are server-sent events, one `data:` line per `chat.completion.chunk`, ending with `data: [DONE]`. Chunks for models that think before answering carry `delta.reasoning_content` before any `delta.content`. The non-streaming message carries the same text as `message.reasoning_content`. The `model` field in every response is the Kali id you asked for.
 
+What Estro changes before relaying: the persona's system prompt replaces any `system` or `developer` messages you send, editor boilerplate (Copilot identity headers, `<system-reminder>` and similar context blocks) is stripped from user turns, `top_p` and `n` are dropped, `reasoning_effort` is kept only when the model lists that level (`none` is forwarded for models with `thinking_off`), and `stream_options.include_usage` is forced on so usage is always reported. Request bodies up to 32 MB are accepted; larger ones answer `413`.
+
+`POST /v1/completions` (legacy prompt completions) and `POST /v1/embeddings` are relayed with the same authentication and metering; no persona is applied to them.
+
 Tool calling uses the standard function-tool schema. Streamed calls arrive as `delta.tool_calls` entries: the first fragment carries `id`, `type` and `function.name`, later fragments append to `function.arguments`, and the turn ends with `finish_reason: "tool_calls"`. Answer with `tool` role messages that reference `tool_call_id`.
 
 ## Anthropic messages
 
-`POST /v1/messages` with the Anthropic request shape: `model`, `max_tokens`, `system` (string or content blocks), `messages`, `stream`, `tools`. Send `anthropic-version` if your client does; `2023-06-01` is assumed otherwise. Thinking appears as `thinking` content blocks. Clients such as Claude Code work with `ANTHROPIC_BASE_URL=https://estro.help` and `ANTHROPIC_AUTH_TOKEN` set to a key.
+`POST /v1/messages` with the Anthropic request shape: `model`, `max_tokens`, `system` (string or content blocks), `messages`, `stream`, `tools`. Send `anthropic-version` if your client does; `2023-06-01` is assumed otherwise. Thinking appears as `thinking` content blocks; `thinking: {"type":"disabled"}` is honoured on models with `thinking_off`. The persona's prompt replaces your `system`. Clients such as Claude Code work with `ANTHROPIC_BASE_URL=https://estro.help` and `ANTHROPIC_AUTH_TOKEN` set to a key.
 
 ## Responses
 
-`POST /v1/responses` with `model`, `input` (string or item list), `instructions`, `stream`. Reasoning arrives as `reasoning` output items before the `message` item.
+`POST /v1/responses` with `model`, `input` (string or item list), `instructions`, `stream`. Reasoning arrives as `reasoning` output items before the `message` item. `previous_response_id` works: Estro keeps each completed response's items for two hours (up to 1000 per account) and prepends them to the next request, since the upstream retains nothing. `truncation` and `reasoning.effort` levels the model does not offer are dropped; your `instructions` are replaced by the persona's.
 
 ## Errors
 
@@ -109,15 +113,23 @@ Error bodies follow the OpenAI shape, `{"error":{"message":"...","type":"...","c
 | Status | Code | Meaning |
 |---|---|---|
 | 400 | `bad_request` | Malformed JSON, empty `messages` or `input` |
-| 401 | none | Missing, expired or revoked credential |
+| 400 | `context_length_exceeded` | The prompt does not fit the model's context window (`param: "messages"`); Anthropic callers get `prompt is too long: N tokens > M maximum`, and a streaming Responses call gets a `response.failed` event instead |
+| 400 | `upstream_error` | The upstream rejected the request; `message` carries its reason and `upstream_status` its status |
+| 401 | type `authentication_error` | `missing API key` or `invalid API key` |
 | 403 | `email_unverified` | Verify the account's email first |
 | 403 | `banned` | Account suspended |
 | 402 | `billing_error` | The account has no active plan (API access, or Kali Gamma and Kali Beta on the site) |
 | 404 | `model_not_found` | Unknown model id |
+| 413 | `body_too_large` | Request body over 32 MB |
 | 429 | `rate_limit_exceeded` | Per-minute limit or daily cap reached; see `Retry-After` |
+| 429 | `server_busy` | The model is at capacity; `Retry-After` says when to retry |
 | 429 | type `usage_limit_reached` | A plan window (or the free daily pool) is full; see `Retry-After` and `resets_in` |
-| 502 | none | The model provider is unavailable |
+| 502 | `upstream_error` | The model provider did not answer |
 | 503 | `model_unavailable` | That model is disabled on this deployment |
+
+Only answered requests (2xx) count against the daily cap and the plan windows. Mid-stream failures are rewritten the same way: a context overflow during streaming arrives as the dialect's error event with the wording above, and no upstream or base-model name ever appears in an error.
+
+Browser clients can call `/v1` cross-origin: every `/v1` response carries `Access-Control-Allow-Origin: *`, preflights answer `204`, and `Retry-After` plus the `x-codex-*` usage headers are exposed.
 
 ## Rate limits
 

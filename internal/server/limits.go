@@ -21,8 +21,9 @@ var (
 )
 
 const (
-	plainBody  = `{"error":"too many requests, slow down"}`
-	openAIBody = `{"error":{"message":"rate limit exceeded, retry shortly","type":"rate_limit_error","code":"rate_limit_exceeded"}}`
+	plainBody     = `{"error":"too many requests, slow down"}`
+	openAIBody    = `{"error":{"message":"rate limit exceeded, retry shortly","type":"rate_limit_error","code":"rate_limit_exceeded"}}`
+	anthropicBody = `{"type":"error","error":{"type":"rate_limit_error","message":"rate limit exceeded, retry shortly"}}`
 )
 
 func accountKey(r *http.Request) string {
@@ -44,6 +45,8 @@ func limits(next http.Handler) http.Handler {
 			lim, key, body = appLimit, "ip:"+auth.RequestIP(r), plainBody
 		case strings.HasPrefix(path, "/api/auth/") && r.Method != http.MethodGet:
 			lim, key, body = authLimit, "ip:"+auth.RequestIP(r), plainBody
+		case strings.HasPrefix(path, "/v1/messages") && r.Method != http.MethodGet:
+			lim, key, body = llmLimit, accountKey(r), anthropicBody
 		case strings.HasPrefix(path, "/v1/") && r.Method != http.MethodGet:
 			lim, key, body = llmLimit, accountKey(r), openAIBody
 		case strings.HasPrefix(path, "/api/"):

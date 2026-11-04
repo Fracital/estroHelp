@@ -14,9 +14,11 @@ import (
 	"elichat/internal/db"
 	"elichat/internal/persona"
 	"elichat/internal/provider"
+	"elichat/internal/relay"
 )
 
-const bodyLimit = 24 << 20
+// bodyLimit matches abulxt: agent loops send whole repositories as context.
+const bodyLimit = 32 << 20
 
 type Chat struct {
 	DB                   *db.DB
@@ -28,6 +30,8 @@ type Chat struct {
 
 func (c *Chat) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/chat/completions", auth.RequireUser(c.completions))
+	mux.HandleFunc("POST /v1/completions", c.passthrough(provider.Completions))
+	mux.HandleFunc("POST /v1/embeddings", c.passthrough(provider.Embeddings))
 	mux.HandleFunc("GET /v1/models", c.listModelsOpenAI)
 	mux.HandleFunc("GET /api/models", c.listModels)
 	mux.HandleFunc("GET /api/usage", auth.RequireUser(c.usage))
@@ -40,15 +44,49 @@ type chatRequest struct {
 	Stream   bool              `json:"stream"`
 }
 
+// openAIType is the OpenAI-shape error type for a status; codes carry the detail.
+func openAIType(status int) string {
+	switch {
+	case status == 401:
+		return "authentication_error"
+	case status == 402:
+		return "billing_error"
+	case status == 403:
+		return "permission_error"
+	case status == 429:
+		return "rate_limit_error"
+	case status >= 500:
+		return "api_error"
+	}
+	return "invalid_request_error"
+}
+
 func openAIError(w http.ResponseWriter, status int, msg, code string) {
-	auth.WriteJSON(w, status, map[string]any{"error": map[string]any{"message": msg, "type": "invalid_request_error", "code": code}})
+	relay.WriteError(w, relay.OpenAI, status, openAIType(status), msg, map[string]any{"code": code})
+}
+
+func anthropicError(w http.ResponseWriter, status int, msg, kind string) {
+	relay.WriteError(w, relay.Anthropic, status, kind, msg, nil)
+}
+
+// readBody reads up to the body limit and answers 413 in the caller's dialect past it.
+func readBody(w http.ResponseWriter, r *http.Request, shape relay.Shape) ([]byte, bool) {
+	raw, err := io.ReadAll(io.LimitReader(r.Body, bodyLimit+1))
+	if err != nil {
+		relay.WriteError(w, shape, 400, "invalid_request_error", "could not read body", nil)
+		return nil, false
+	}
+	if len(raw) > bodyLimit {
+		relay.WriteError(w, shape, 413, "invalid_request_error", "request body too large; the limit is 32 MB", map[string]any{"code": "body_too_large"})
+		return nil, false
+	}
+	return raw, true
 }
 
 func (c *Chat) completions(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	raw, err := io.ReadAll(io.LimitReader(r.Body, bodyLimit))
-	if err != nil {
-		openAIError(w, 400, "could not read body", "bad_request")
+	raw, ok := readBody(w, r, relay.OpenAI)
+	if !ok {
 		return
 	}
 	var req chatRequest
@@ -61,32 +99,9 @@ func (c *Chat) completions(w http.ResponseWriter, r *http.Request) {
 		openAIError(w, 400, "messages is required", "bad_request")
 		return
 	}
-	p, ok := persona.Resolve(req.Model)
+	p, prov, ok := c.gate(w, r, req.Model, func(s int, m, k string) { openAIError(w, s, m, k) })
 	if !ok {
-		openAIError(w, 404, "unknown model "+req.Model+"; use kali-gamma, kali-beta or kali-epsilon", "model_not_found")
 		return
-	}
-	prov, ok := c.Providers[p.Provider]
-	if !ok {
-		openAIError(w, 503, p.Name+" is not available right now", "model_unavailable")
-		return
-	}
-
-	if ban, _ := c.Store.ActiveBan(r.Context(), u.ID); ban != nil {
-		openAIError(w, 403, "account banned: "+ban.Reason, "banned")
-		return
-	}
-	if c.RequireVerifiedEmail && !u.EmailVerified && !u.Admin {
-		openAIError(w, 403, "verify your email address to chat", "email_unverified")
-		return
-	}
-	if !u.Admin && !u.Sandbox && c.DailyRequestLimit > 0 {
-		var today int
-		c.DB.QueryRow(r.Context(), `SELECT coalesce(sum(requests),0) FROM ai_usage WHERE user_id=$1 AND day=CURRENT_DATE`, u.ID).Scan(&today)
-		if today >= c.DailyRequestLimit {
-			openAIError(w, 429, "daily request limit reached", "rate_limit_exceeded")
-			return
-		}
 	}
 	if _, ok := c.admit(w, r, "openai", p.ID, func(s int, m, k string) { openAIError(w, s, m, k) }); !ok {
 		return
@@ -102,16 +117,25 @@ func (c *Chat) completions(w http.ResponseWriter, r *http.Request) {
 	passthrough["model"], _ = json.Marshal(p.BaseModel)
 	body, _ := json.Marshal(passthrough)
 
-	c.recordUsage(r.Context(), u, p.ID, promptChars)
 	slog.Info("chat", "user", u.Username, "model", p.ID, "upstream", p.BaseModel, "stream", req.Stream, "sandbox", u.Sandbox)
-	rw := newModelRewriter(w, p.ID)
-	prov.Serve(rw, r, provider.ChatCompletions, body)
+	rw := newModelRewriter(w, p.ID, relay.OpenAI, false)
+	status := prov.Serve(rw, r, provider.ChatCompletions, body)
 	rw.Close()
-	c.meter(r.Context(), u, p.ID, rw.usage, promptChars, rw.bytesOut)
+	c.finish(r.Context(), u, p.ID, status, rw, promptChars)
+}
+
+// finish records and meters a request once the upstream answered it. Refused
+// requests (4xx, 5xx, transport failures) cost the caller nothing, as in abulxt.
+func (c *Chat) finish(ctx context.Context, u *auth.User, model string, status int, rw *modelRewriter, promptChars int) {
+	if status < 200 || status >= 300 {
+		return
+	}
+	c.recordUsage(ctx, u, model, promptChars)
+	c.meter(ctx, u, model, rw.usage, promptChars, rw.bytesOut)
 }
 
 func (c *Chat) recordUsage(ctx context.Context, u *auth.User, model string, promptChars int) {
-	_, err := c.DB.Exec(ctx, `INSERT INTO ai_usage (user_id, day, model, requests, prompt_chars, sandbox) VALUES ($1, CURRENT_DATE, $2, 1, $3, $4)
+	_, err := c.DB.Exec(context.WithoutCancel(ctx), `INSERT INTO ai_usage (user_id, day, model, requests, prompt_chars, sandbox) VALUES ($1, CURRENT_DATE, $2, 1, $3, $4)
 		ON CONFLICT (user_id, day, model) DO UPDATE SET requests = ai_usage.requests + 1, prompt_chars = ai_usage.prompt_chars + EXCLUDED.prompt_chars`,
 		u.ID, model, promptChars, u.Sandbox)
 	if err != nil {
@@ -142,17 +166,4 @@ func (c *Chat) listModels(w http.ResponseWriter, r *http.Request) {
 		out = append(out, model{p, ok, !billing.IsFreeModel(p.ID)})
 	}
 	auth.WriteJSON(w, 200, map[string]any{"models": out})
-}
-
-func (c *Chat) listModelsOpenAI(w http.ResponseWriter, r *http.Request) {
-	data := []map[string]any{}
-	for _, p := range persona.All() {
-		data = append(data, map[string]any{
-			"id": p.ID, "object": "model", "owned_by": "estro", "name": p.Name, "description": p.Description, "short": p.Short,
-			"requires_plan":  !billing.IsFreeModel(p.ID),
-			"context_window": p.ContextWindow, "max_output": p.MaxOutput, "tool_use": p.ToolUse, "vision": p.Vision,
-			"reasoning": p.Reasoning, "levels": p.Levels, "thinking_off": p.ThinkingOff,
-		})
-	}
-	auth.WriteJSON(w, 200, map[string]any{"object": "list", "data": data})
 }

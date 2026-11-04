@@ -10,7 +10,8 @@ import (
 // top_p and n go unconditionally (the Kimi upstream only accepts top_p 0.95
 // and the client chose them for a different model), /v1/responses rejects
 // truncation and keeps no past responses, and a reasoning level the model
-// does not offer is dropped rather than forwarded.
+// does not offer is dropped rather than forwarded. "off"/"none" is forwarded
+// only for models that can switch thinking off.
 
 var responsesUnsupported = []string{"truncation", "previous_response_id"}
 
@@ -19,14 +20,9 @@ func sanitizeCommon(body map[string]json.RawMessage) {
 	delete(body, "n")
 }
 
-// clampEffort keeps a requested reasoning level only when the model lists it.
+// clampEffort keeps a requested reasoning level only when the model offers it.
 func clampEffort(p *persona.Persona, requested string) (string, bool) {
-	for _, l := range p.Levels {
-		if l == requested {
-			return l, true
-		}
-	}
-	return "", false
+	return p.ThinkingFor(requested)
 }
 
 func sanitizeChat(body map[string]json.RawMessage, p *persona.Persona, stream bool) {
@@ -84,6 +80,22 @@ func sanitizeResponses(body map[string]json.RawMessage, p *persona.Persona) {
 	}
 }
 
-func sanitizeMessages(body map[string]json.RawMessage) {
+// sanitizeMessages handles Anthropic's `thinking` switch: `{type:"disabled"}`
+// is forwarded only when the model can switch thinking off; `enabled` passes.
+func sanitizeMessages(body map[string]json.RawMessage, p *persona.Persona) {
 	sanitizeCommon(body)
+	if raw, ok := body["thinking"]; ok {
+		var th struct {
+			Type string `json:"type"`
+		}
+		if json.Unmarshal(raw, &th) != nil {
+			delete(body, "thinking")
+			return
+		}
+		if th.Type == "disabled" {
+			if _, ok := p.ThinkingFor("off"); !ok {
+				delete(body, "thinking")
+			}
+		}
+	}
 }

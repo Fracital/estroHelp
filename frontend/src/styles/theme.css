@@ -1,0 +1,120 @@
+/* Theme tokens (ported from Abstract AI index.css). The inline <head> script
+   and lib/theme.ts write the resolved values onto <html>; these are the
+   fallbacks for the first paint and for pages without a stored theme. */
+:root {
+  --font-ui: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --theme-bg: #0c1f17;
+  --theme-accent: #e23a3a;
+  --theme-fg: #fbf3e4;
+  --theme-on-accent: #ffffff;
+  --shell-bg: transparent;
+  --shell-surface: color-mix(in srgb, color-mix(in srgb, var(--theme-bg) 96%, var(--theme-fg)) 38%, transparent);
+  --shell-raised: color-mix(in srgb, color-mix(in srgb, var(--theme-bg) 93%, var(--theme-fg)) 62%, transparent);
+  --shell-popover: color-mix(in srgb, var(--theme-bg) 93%, var(--theme-fg));
+  --shell-hover: color-mix(in srgb, color-mix(in srgb, var(--theme-bg) 91%, var(--theme-fg)) 72%, transparent);
+  --shell-line: color-mix(in srgb, var(--theme-bg) 90%, var(--theme-fg));
+  --shell-line-strong: color-mix(in srgb, var(--theme-bg) 82%, var(--theme-fg));
+  --shell-text: var(--theme-fg);
+  --shell-muted: color-mix(in srgb, var(--theme-fg) 52%, var(--theme-bg));
+  --shell-faint: color-mix(in srgb, var(--theme-fg) 30%, var(--theme-bg));
+  --shell-accent: var(--theme-accent);
+  --shell-on-accent: var(--theme-on-accent);
+  --ui-bg: var(--shell-surface);
+  --ui-surface: var(--shell-raised);
+  --ui-glass: color-mix(in srgb, var(--theme-fg) 5%, transparent);
+  --ui-glass-2: color-mix(in srgb, var(--theme-fg) 10%, transparent);
+  --ui-glass-3: color-mix(in srgb, var(--theme-fg) 16%, transparent);
+  --ui-glass-hover: color-mix(in srgb, var(--theme-fg) 8%, transparent);
+  --ui-border: color-mix(in srgb, var(--theme-fg) 13%, transparent);
+  --ui-border-strong: color-mix(in srgb, var(--theme-fg) 30%, transparent);
+  --ui-text: var(--theme-fg);
+  --ui-text-muted: var(--shell-muted);
+  --ui-text-subtle: color-mix(in srgb, var(--theme-fg) 42%, var(--theme-bg));
+  --ui-white: var(--theme-fg);
+  --ui-accent: var(--theme-accent);
+}
+
+html { font-family: var(--font-ui); font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+html[data-theme] body { background: var(--theme-bg); color: var(--theme-fg); }
+html[data-theme][data-bg]:not([data-bg="none"]) body { background: transparent; }
+::selection { background: color-mix(in srgb, var(--theme-accent) 35%, var(--theme-bg)); }
+
+/* Range inputs, as the settings page draws them. */
+input[type='range'] { accent-color: var(--theme-fg); height: 4px; border-radius: 999px; background: var(--shell-line-strong); -webkit-appearance: none; appearance: none; }
+input[type='range']::-webkit-slider-runnable-track { height: 4px; border-radius: 999px; background: var(--shell-line-strong); }
+input[type='range']::-webkit-slider-thumb { width: 13px; height: 13px; margin-top: -4.5px; border: 0; border-radius: 50%; background: var(--theme-fg); -webkit-appearance: none; appearance: none; }
+input[type='range']::-moz-range-track { height: 4px; border-radius: 999px; background: var(--shell-line-strong); }
+input[type='range']::-moz-range-thumb { width: 13px; height: 13px; border: 0; border-radius: 50%; background: var(--theme-fg); }
+
+/* Buttons shared with the chat settings panel (chat-settings.css). */
+.kali-cs-primary, .kali-cs-secondary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; margin: 0; padding: 7px 13px;
+  border: 1px solid var(--ui-border-strong); border-radius: 9px; background: var(--ui-glass); color: var(--ui-text);
+  font: inherit; font-size: 12.5px; font-weight: 550; line-height: 1.2; white-space: nowrap; cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, filter 0.15s ease;
+}
+.kali-cs-secondary:hover:not(:disabled) { background: var(--ui-glass-hover); border-color: var(--ui-border-strong); }
+.kali-cs-primary { border-color: var(--ui-accent); background: var(--ui-accent); color: var(--theme-on-accent); }
+.kali-cs-primary:hover:not(:disabled) { filter: brightness(1.08); }
+.kali-cs-primary:disabled, .kali-cs-secondary:disabled { opacity: 0.45; cursor: default; }
+.kali-ai .kali-cs-toggle {
+  display: flex; width: 100%; height: 32px; align-items: center; gap: 8px; padding: 0 10px; border-radius: 10px;
+  color: var(--shell-muted); font-size: 12.5px; line-height: 1; transition: background-color 0.15s ease, color 0.15s ease;
+}
+.kali-ai .kali-cs-toggle svg { flex: none; }
+.kali-ai .kali-cs-toggle:hover { background: var(--shell-raised); color: var(--theme-fg); }
+
+/* Lucide icons stand in for VS Code codicons in the ported markup. */
+.kali-term-head > svg, .kali-ws-tabs svg, .kali-ws-icon svg, .kali-ws-list svg, .kali-ws-shelltab > svg { flex: none; }
+.kali-ws-list svg { color: var(--shell-muted); }
+.kali-trace-icon svg { width: 13px; height: 13px; }
+
+/* The AI page fills the shell's workspace frame. */
+.kali-ai { height: 100%; }
+.kali-ai .kali-ws { height: 100%; }
+.kali-workspace-view > .kali-ai { animation: none; }
+
+/* Theme swatches in the appearance modal (settings page style). */
+.kali-theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; }
+.kali-theme-swatch {
+  display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border: 1px solid var(--ui-border); border-radius: 9px;
+  background: var(--sw-bg); color: var(--sw-fg); font-size: 12px; font-weight: 500; text-align: left; cursor: pointer; transition: border-color .12s, transform .12s;
+}
+.kali-theme-swatch:hover { border-color: var(--ui-border-strong); transform: translateY(-1px); }
+.kali-theme-swatch.selected { border-color: var(--sw-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--sw-accent) 35%, transparent); }
+.kali-theme-swatch-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--sw-accent); flex: none; }
+.kali-theme-swatch > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Workspace pane extras beyond abulxt's viewer: an editor, row delete, sizes. */
+.kali-ws-row { display: flex; align-items: center; gap: 2px; }
+.kali-ws-row > button:first-child { flex: 1; min-width: 0; }
+.kali-ws-row .kali-ws-rowdel { width: 22px; height: 22px; opacity: 0; }
+.kali-ws-row:hover .kali-ws-rowdel { opacity: 1; }
+.kali-ws-size { color: var(--shell-muted); font-size: 11px; font-family: var(--font-mono); margin-left: auto; }
+.kali-ws-list .kali-ws-go { margin-left: auto; color: var(--shell-muted); }
+.kali-ws-dirty { color: var(--theme-accent); }
+.kali-ws-editor {
+  flex: 1; min-height: 0; resize: none; border: 0; outline: 0; background: #111111; color: var(--theme-fg);
+  font-family: var(--font-mono); font-size: 12.5px; line-height: 1.55; padding: 10px 12px; tab-size: 2; white-space: pre; overflow: auto;
+}
+.kali-ws-bar .kali-cs-primary { padding: 4px 10px; font-size: 12px; }
+.kali-ws-head .kali-ws-tabs button svg { color: inherit; }
+.kali-ai-loading { display: flex; color: var(--shell-muted); font-size: 13px; }
+
+/* Abstract's global resets (index.css), scoped to the shell: no UA button chrome, no scrollbars. */
+.kali-shell button { border: 0; background: none; color: inherit; cursor: pointer; user-select: none; -webkit-user-select: none; font: inherit; }
+.kali-shell button:disabled { cursor: default; }
+.kali-shell button:not(:disabled):active { transform: scale(.97); }
+.kali-shell button, .kali-shell a { transition: background .15s, color .15s, transform .16s ease; }
+.kali-shell button:focus-visible, .kali-shell a:focus-visible, .kali-shell input:focus-visible, .kali-shell textarea:focus-visible { outline: none; }
+.kali-shell, .kali-shell * { scrollbar-width: none; }
+.kali-shell *::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.kali-shell a { text-decoration: none; }
+.kali-tools-pick { min-width: 0; }
+.kali-tools-desc, .kali-tools-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kali-tab-rail-add { text-decoration: none; }
+
+/* Narrow screens: the tab-layout switch is not offered (abulxt hides it there too), and the model pill never wraps. */
+@media (max-width: 900px) { .kali-shell .kali-tab-layout-toggle { display: none !important; } }
+.kali-model-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

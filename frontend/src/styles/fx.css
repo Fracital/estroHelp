@@ -1,0 +1,59 @@
+/* Animated background layer and the translucent surfaces that let it show
+   through. Only active when a background is selected (html[data-bg] set and
+   not "none"); otherwise every surface keeps its solid colour from chat.css
+   and global.css. */
+
+.fx-root {
+  position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden;
+  background: var(--bg);
+}
+.fx-scene { position: absolute; inset: 0; }
+.fx-veil {
+  position: absolute; inset: 0;
+  background: var(--bg);
+  opacity: var(--bg-dim, 0.55);
+  transition: opacity .2s;
+}
+
+html[data-bg]:not([data-bg="none"]) body { background: transparent; }
+html[data-bg]:not([data-bg="none"]) .nav { background: color-mix(in srgb, var(--bg) 62%, transparent); backdrop-filter: blur(var(--surface-blur, 10px)); }
+html[data-bg]:not([data-bg="none"]) .card { background: color-mix(in srgb, var(--bg-2) 74%, transparent); }
+html[data-bg]:not([data-bg="none"]) .footer { background: color-mix(in srgb, var(--bg) 50%, transparent); }
+
+
+
+/* Appearance settings modal */
+.appearance {
+  display: grid; gap: 20px; width: min(640px, 100%);
+}
+.appearance h2 { font-size: 20px; }
+.appearance-head { display: flex; align-items: center; gap: 12px; }
+.appearance-head .btn { margin-left: auto; }
+.appearance-row { display: grid; gap: 8px; }
+.appearance-row > label, .appearance-row > .label { font-size: 13px; color: var(--text-2); font-weight: 500; display: flex; justify-content: space-between; }
+.appearance-row .hint { font-size: 12px; }
+.appearance-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+.bg-thumb {
+  position: relative; display: grid; align-content: end; padding: 8px; height: 76px; border-radius: 10px;
+  border: 1px solid var(--border-2); background: var(--thumb, var(--bg-3)); color: #fff; font-size: 12px; font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0,0,0,.6); cursor: pointer; overflow: hidden; transition: transform .12s, border-color .12s;
+}
+.bg-thumb::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 40%, rgba(0,0,0,.55)); }
+.bg-thumb > span { position: relative; }
+.bg-thumb:hover { transform: translateY(-1px); border-color: var(--text-2); }
+.bg-thumb.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.bg-thumb.none { background: repeating-linear-gradient(45deg, var(--bg-3) 0 8px, var(--bg-4) 8px 16px); }
+.appearance input[type="range"] { width: 100%; accent-color: var(--accent); }
+.appearance select.input { width: auto; min-width: 160px; }
+.appearance-inline { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.appearance input[type="color"] { width: 40px; height: 30px; padding: 0; border: 1px solid var(--border-2); border-radius: 6px; background: var(--bg-2); cursor: pointer; }
+.toggle { position: relative; width: 40px; height: 22px; border-radius: 999px; border: 1px solid var(--border-2); background: var(--bg-4); cursor: pointer; transition: background .15s; }
+.toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--text-2); transition: transform .15s, background .15s; }
+.toggle[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
+.toggle[aria-checked="true"]::after { transform: translateX(18px); background: #fff; }
+
+.appearance-overlay {
+  position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 16px;
+  background: rgba(0, 0, 0, .55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+}
+.appearance-overlay .appearance { max-height: calc(100dvh - 32px); overflow-y: auto; background: var(--bg-2); }

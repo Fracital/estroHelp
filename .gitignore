@@ -1,0 +1,12 @@
+.env
+.pgdata/
+zai_config.json
+frontend/node_modules/
+frontend/dist/
+frontend/.astro/
+bin/
+*.log
+cliproxyapi.txt
+server.log
+frontend/public/dusk/
+__pycache__/

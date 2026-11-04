@@ -1,0 +1,9 @@
+---
+import Shell from '../layouts/Shell.astro';
+import SettingsPage from '../components/SettingsPage';
+---
+<Shell title="Settings" active="settings">
+  <SettingsPage client:only="preact">
+    <div slot="fallback" class="kali-view-loading">Loading settings</div>
+  </SettingsPage>
+</Shell>

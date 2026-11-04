@@ -1,0 +1,9 @@
+---
+import Shell from '../layouts/Shell.astro';
+import AdminPanel from '../components/AdminPanel';
+---
+<Shell title="Admin" active="admin">
+  <AdminPanel client:only="preact">
+    <div slot="fallback" class="kali-view-loading">Loading admin</div>
+  </AdminPanel>
+</Shell>

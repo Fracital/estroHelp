@@ -1,0 +1,146 @@
+---
+import Shell from '../layouts/Shell.astro';
+import Integrations from '../components/Integrations';
+import RunButton from '../components/RunButton';
+import { LegalFooter } from '../components/AuthGate';
+
+const models = [
+  { id: 'gamma', name: 'Kali Gamma', tag: 'Deep', body: 'Our most capable model. Plans multi-step work, reasons through tricky bugs, and holds large codebases in view.' },
+  { id: 'beta', name: 'Kali Beta', tag: 'Balanced', body: 'Extended context and steady judgment for everyday coding, writing and review.' },
+  { id: 'epsilon', name: 'Kali Epsilon', tag: 'Fast', body: 'Quick answers and tight iteration loops when latency matters more than depth.' },
+];
+const features = [
+  { n: '01', title: 'Threads that remember', body: 'Every conversation is saved to your account. Switch models mid-thread; the history comes along.' },
+  { n: '02', title: 'Streams, with its reasoning', body: 'Replies stream token by token. When a model thinks before it answers, you can read the thought process.' },
+  { n: '03', title: 'One key, any client', body: 'The same models sit behind an OpenAI-compatible endpoint. Point your SDK or editor at it with your session token.' },
+  { n: '04', title: 'Your account, your devices', body: 'Email verification, session management per device, and a password reset flow that does not need support.' },
+];
+const curl = `curl https://estro.help/v1/chat/completions \\
+  -H "Authorization: Bearer $ESTRO_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "kali-gamma",
+    "stream": true,
+    "messages": [{ "role": "user", "content": "Refactor this function and explain the tradeoffs." }]
+  }'`;
+---
+<Shell active="home" scroll>
+    <main>
+      <section class="hero container">
+        <h1>Code with a model that<br /><span>keeps up with you.</span></h1>
+        <p class="lede">Kali Gamma, Beta and Epsilon are tuned for depth, balance and speed. Chat here, or reach them from any OpenAI-compatible client.</p>
+        <div class="cta">
+          <a class="btn btn-primary" href="/chat">Start chatting</a>
+          <a class="btn" href="/docs">Read the API docs</a>
+        </div>
+      </section>
+
+      <section class="container models">
+        {models.map((m) => (
+          <article class="card model" style={`--tier: var(--${m.id})`}>
+            <header><h3>{m.name}</h3><span class={`badge badge-${m.id}`}>{m.tag}</span></header>
+            <p>{m.body}</p>
+            <button type="button" class="model-id" data-copy-id={`kali-${m.id}`} title="Copy model id"><code>kali-{m.id}</code><span class="model-id-hint">copy</span></button>
+          </article>
+        ))}
+      </section>
+
+      <section class="container">
+        <Integrations compact client:load />
+      </section>
+
+      <section class="container features">
+        {features.map((f) => (
+          <div class="feature">
+            <span class="num">{f.n}</span>
+            <h3>{f.title}</h3>
+            <p>{f.body}</p>
+          </div>
+        ))}
+      </section>
+
+      <section class="container api">
+        <div>
+          <h2>Already have a client?</h2>
+          <p class="hint" style="margin-top:8px">Sign in, grab the token from the login response, and send it as a bearer. Streaming, reasoning deltas and the usual chat-completions shape all work.</p>
+          <a class="btn btn-sm" href="/docs" style="margin-top:18px">Full reference</a>
+        </div>
+        <div class="code-tabs">
+          <div class="code-tabs-head">
+            <div class="tabs-row"><span class="tab active">curl</span></div>
+            <RunButton client:load code={curl} lang="sh" />
+          </div>
+          <pre><code>{curl}</code></pre>
+        </div>
+      </section>
+
+      <section class="container closing">
+        <h2>Pick a model and go.</h2>
+        <a class="btn btn-primary" href="/register">Create an account</a>
+      </section>
+    </main>
+    <LegalFooter className="kali-page-foot" />
+</Shell>
+
+<style>
+  .hero { padding: 96px 0 56px; max-width: 820px; }
+  .eyebrow { color: var(--accent); font-weight: 600; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 18px; }
+  .hero h1 { font-size: clamp(40px, 7vw, 72px); font-weight: 800; }
+  .hero h1 span { background: linear-gradient(90deg, var(--accent), var(--accent-2) 70%, var(--beta)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lede { margin-top: 22px; font-size: 18px; color: var(--text-2); max-width: 600px; }
+  .cta { display: flex; gap: 10px; margin-top: 30px; flex-wrap: wrap; }
+
+  .models { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; padding-top: 20px; }
+  .model { display: flex; flex-direction: column; }
+  .model header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .model h3 { font-size: 17px; flex: 1; }
+  .model p { color: var(--text-2); font-size: 14px; }
+  .model p { flex: 1; }
+  .model-id {
+    display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; margin-top: 14px;
+    padding: 2px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-3); color: var(--muted);
+    font-size: 12px; cursor: pointer; transition: border-color .12s, color .12s;
+  }
+  .model-id code { font-size: 12px; background: none; border: 0; padding: 0; color: inherit; }
+  .model-id-hint { font-size: 11px; opacity: .7; }
+  .model-id:hover { color: var(--text); border-color: var(--border-2); }
+  .model-id.copied { color: var(--ok); border-color: var(--ok); }
+
+  .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 30px 24px; padding: 90px 0 20px; }
+  .feature .num { color: var(--accent); font-family: var(--mono); font-size: 12px; }
+  .feature h3 { font-size: 17px; margin: 10px 0 8px; }
+  .feature p { color: var(--text-2); font-size: 14px; }
+
+  .api { display: grid; grid-template-columns: 1fr 1.3fr; gap: 32px; align-items: center; padding: 80px 0 20px; }
+  .api h2 { font-size: 28px; }
+  .api .code-tabs { margin: 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: #0b0b11; }
+  .api .code-tabs-head { display: flex; align-items: center; gap: 4px; padding: 0 6px; height: 40px; background: var(--bg-3); border-bottom: 1px solid var(--border); }
+  .api .tabs-row { flex: 1; }
+  .api .tab { display: inline-block; padding: 6px 14px; color: var(--text); font-size: 13px; font-weight: 500; border-radius: 6px; background: rgba(255,255,255,.08); }
+  .api pre { margin: 0; padding: 18px; font-size: 13px; line-height: 1.6; overflow-x: auto; color: var(--text-2); }
+  @media (max-width: 760px) { .api { grid-template-columns: 1fr; } }
+
+  .closing { text-align: center; padding: 90px 0 0; display: grid; gap: 18px; justify-items: center; }
+  .closing h2 { font-size: 30px; }
+</style>
+<style is:global>
+  .api .run-code {
+    display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border: 1px solid transparent; border-radius: 6px;
+    color: var(--muted); font-size: 12px; text-decoration: none;
+  }
+  .api .run-code:hover { color: var(--ok); border-color: var(--border-2); }
+  .api .run-code svg { fill: currentColor; }
+</style>
+<script>
+  document.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.model-id');
+    if (!btn) return;
+    const id = btn.dataset.copyId ?? '';
+    navigator.clipboard.writeText(id).then(() => {
+      const hint = btn.querySelector('.model-id-hint');
+      btn.classList.add('copied');
+      if (hint) hint.textContent = 'copied';
+      setTimeout(() => { btn.classList.remove('copied'); if (hint) hint.textContent = 'copy'; }, 1200);
+    }).catch(() => {});
+  });
+</script>

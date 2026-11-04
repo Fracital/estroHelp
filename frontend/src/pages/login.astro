@@ -1,0 +1,9 @@
+---
+import Shell from '../layouts/Shell.astro';
+import AuthForm from '../components/AuthForm';
+---
+<Shell title="Sign in" active="account">
+  <AuthForm mode="login" client:only="preact">
+    <div slot="fallback" class="kali-view-loading">Loading sign in</div>
+  </AuthForm>
+</Shell>

@@ -1,0 +1,166 @@
+/* /settings page pieces, ported from Abstract AI settings.css. Cards/rows/buttons come from account.css. */
+/* #/settings: page-specific pieces. Cards, rows and buttons come from
+   ../account/account.css (imported by settings.tsx) so both pages match. */
+
+.settings-hero { display: flex; align-items: center; gap: 14px; max-width: 800px; margin: 0 auto 28px; }
+.settings-hero h1 { margin: 0; font-size: 26px; font-weight: 650; letter-spacing: -0.01em; }
+.settings-hero p { margin: 5px 0 0; color: var(--ui-text-subtle); font-size: 13px; line-height: 1.5; }
+.settings-hero-icon {
+  display: grid; place-items: center; width: 48px; height: 48px; flex: 0 0 auto; border-radius: 14px;
+  border: 1px solid var(--ui-border-strong); background: var(--ui-surface); color: var(--ui-accent);
+}
+.settings-inline-link { padding: 0; border: 0; background: none; color: var(--ui-text-muted); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.settings-inline-link:hover { color: var(--ui-text); }
+
+.settings-section > h2 svg { color: var(--ui-accent); }
+.settings-section-note { margin: 0; padding: 12px 16px 0; color: var(--ui-text-subtle); font-size: 13px; line-height: 1.5; }
+.settings-section-note + .settings-row { border-top: 0; }
+.settings-note { margin: 0; padding: 12px 16px; color: var(--ui-text-subtle); font-size: 13px; }
+.settings-group-label { display: flex; flex-direction: column; gap: 3px; }
+.settings-group-label strong { font-size: 14px; font-weight: 600; }
+.settings-group-label small { color: var(--ui-text-subtle); font-size: 13px; }
+
+/* Toggle rows: the whole row is the label. */
+.settings-toggle { cursor: pointer; }
+.settings-toggle.is-disabled { cursor: default; opacity: 0.45; }
+.settings-toggle:hover { background: var(--ui-glass); }
+.switch {
+  position: relative; width: 40px; height: 23px; flex: 0 0 auto; margin: 0; appearance: none; -webkit-appearance: none;
+  border-radius: 999px; background: var(--ui-glass-3); cursor: pointer; transition: background 0.18s ease;
+}
+.switch::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 17px; height: 17px; border-radius: 50%;
+  background: var(--ui-text-muted); transition: transform 0.18s ease, background 0.18s ease;
+}
+.switch:checked { background: var(--ui-accent); }
+.switch:checked::after { background: var(--theme-on-accent); transform: translateX(17px); }
+.switch:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 3px; }
+.switch:disabled { cursor: default; }
+
+/* Sliders */
+.settings-slider-head { display: flex; width: 100%; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.settings-slider-head span { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.settings-slider-head strong { font-size: 14px; font-weight: 600; }
+.settings-slider-head small { color: var(--ui-text-subtle); font-size: 13px; }
+.settings-slider-head output { color: var(--ui-text-muted); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* 24px tall so the thumb has a 32px-class hit area with its focus ring */
+.range { width: 100%; height: 24px; margin: 4px 0 0; accent-color: var(--ui-accent); cursor: pointer; }
+
+/* Text and select fields */
+.settings-field-label { display: flex; flex-direction: column; gap: 3px; }
+.settings-field-label strong { font-size: 14px; font-weight: 600; }
+.settings-field-label small { color: var(--ui-text-subtle); font-size: 13px; }
+/* Text inputs: same look as the account page's inputs. */
+.settings-input {
+  box-sizing: border-box; width: 100%; max-width: 380px; padding: 9px 11px;
+  border: 1px solid var(--ui-border-strong); border-radius: 9px;
+  background: var(--shell-bg); color: var(--ui-text); font: inherit; font-size: 13.5px; outline: 0;
+}
+.settings-input:focus { border-color: var(--ui-accent); }
+.settings-input:disabled { opacity: 0.55; }
+.settings-field-label > .settings-input { margin-top: 8px; }
+.settings-row > .settings-input,
+.settings-row > .settings-select { width: 240px; max-width: 50%; margin-top: 0; flex: 0 0 auto; }
+.settings-select { appearance: auto; }
+.settings-status { color: var(--ui-text-subtle); font-size: 13px; }
+
+/* Message display: two preview cards */
+.density-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; width: 100%; }
+.density-card {
+  display: flex; flex-direction: column; gap: 12px; padding: 12px; border: 1px solid var(--ui-border-strong);
+  border-radius: 12px; background: var(--ui-glass); color: var(--ui-text); font: inherit; text-align: left; cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.density-card:hover { background: var(--ui-glass-hover); }
+.density-card.selected { border-color: var(--ui-accent); background: color-mix(in srgb, var(--ui-accent) 6%, transparent); }
+.density-card:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+.density-card-label { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 13.5px; font-weight: 600; }
+.density-card-label small { display: block; flex-basis: 100%; color: var(--ui-text-subtle); font-size: 13px; font-weight: 400; }
+.radio-dot { width: 14px; height: 14px; flex: 0 0 auto; border-radius: 50%; border: 2px solid var(--ui-border-strong); }
+.density-card.selected .radio-dot, .bg-card.selected .radio-dot { border-color: var(--ui-accent); background: var(--ui-accent); box-shadow: inset 0 0 0 3px var(--ui-surface); }
+
+.density-preview {
+  display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 9px; background: var(--shell-bg);
+  border: 1px solid var(--ui-border); font-size: 12px; color: var(--ui-text);
+}
+.dp-msg { display: flex; align-items: flex-start; gap: 9px; min-width: 0; }
+.dp-msg.dp-next { margin-top: -4px; }
+.dp-avatar { width: 26px; height: 26px; flex: 0 0 auto; border-radius: 50%; }
+.dp-body { min-width: 0; }
+.dp-head { display: flex; align-items: baseline; gap: 7px; }
+.dp-head b { font-size: 12px; font-weight: 650; }
+.dp-head i { color: var(--ui-text-subtle); font-size: 10.5px; font-style: normal; }
+.dp-body p { margin: 1px 0 0; line-height: 1.4; color: color-mix(in srgb, var(--theme-fg) 80%, var(--theme-bg)); overflow-wrap: anywhere; }
+.density-preview.compact .dp-msg { gap: 0; }
+.density-preview.compact .dp-body { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; }
+.density-preview.compact .dp-body p { margin: 0; }
+.density-preview.compact .dp-head { flex: 0 0 auto; }
+.density-preview.cozy .dp-msg + .dp-msg { margin-top: 6px; }
+.dp-mention { padding: 0 3px; border-radius: 3px; background: rgba(250, 166, 26, 0.18); color: #f2d38b; }
+
+/* Legal footer */
+.settings-legal { margin-top: 26px; }
+
+@media (max-width: 640px) {
+  .density-grid { grid-template-columns: 1fr; }
+  .settings-row > .settings-input,
+  .settings-row > .settings-select { width: 100%; max-width: none; }
+}
+
+/* Theme picker */
+.theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; width: 100%; }
+.theme-card {
+  display: flex; flex-direction: column; gap: 10px; padding: 10px; border: 1px solid var(--ui-border-strong);
+  border-radius: 12px; background: var(--ui-glass); color: var(--ui-text); font: inherit; text-align: left; cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.theme-card:hover { background: var(--ui-glass-hover); }
+.theme-card.selected { border-color: var(--ui-accent); }
+.theme-card:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+.theme-swatch {
+  position: relative; height: 54px; border-radius: 8px; border: 1px solid var(--ui-border-strong);
+  background: var(--swatch-bg);
+}
+.theme-swatch::before {
+  content: ""; position: absolute; left: 10px; top: 10px; width: 28px; height: 6px; border-radius: 3px; background: var(--swatch-accent);
+}
+.theme-swatch::after {
+  content: ""; position: absolute; left: 10px; top: 22px; right: 10px; bottom: 10px; border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--swatch-fg) 18%, transparent); background: color-mix(in srgb, var(--swatch-bg) 94%, var(--swatch-fg));
+}
+.theme-card-label { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 13px; font-weight: 600; }
+.theme-card-label small { display: block; flex-basis: 100%; color: var(--ui-text-subtle); font-size: 11.5px; font-weight: 400; }
+.theme-colors { display: flex; flex-wrap: wrap; gap: 12px 24px; width: 100%; }
+.theme-color { display: flex; align-items: center; gap: 10px; font-size: 13px; cursor: pointer; }
+.theme-color input[type="color"] {
+  width: 34px; height: 26px; padding: 0; border: 1px solid var(--ui-border-strong); border-radius: 7px; background: none; cursor: pointer;
+}
+.theme-color input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
+.theme-color input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 4px; }
+.theme-color code { color: var(--ui-text-subtle); font-family: var(--font-mono); font-size: 11.5px; }
+
+@media (max-width: 640px) {
+  .theme-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Background picker (cards are text only; the live background is the preview). */
+.bg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; width: 100%; }
+.bg-card {
+  display: flex; flex-direction: column; gap: 10px; padding: 10px; border: 1px solid var(--ui-border-strong);
+  border-radius: 12px; background: var(--ui-glass); color: var(--ui-text); font: inherit; text-align: left; cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.bg-card:hover { background: var(--ui-glass-hover); }
+.bg-card.selected { border-color: var(--ui-accent); }
+.bg-card:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+.bg-search { width: 100%; max-width: 320px; }
+.bg-grid { max-height: 420px; overflow-y: auto; padding-right: 2px; }
+@media (max-width: 560px) {
+  .bg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Speed test results */
+.speed-table { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.speed-table th { padding: 6px 8px; color: var(--ui-text-subtle); font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-align: left; text-transform: uppercase; }
+.speed-table td { padding: 7px 8px; border-top: 1px solid var(--ui-border); color: var(--ui-text); }
+.speed-table td:nth-child(3) { font-weight: 600; }

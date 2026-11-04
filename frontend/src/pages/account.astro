@@ -1,0 +1,9 @@
+---
+import Shell from '../layouts/Shell.astro';
+import Account from '../components/Account';
+---
+<Shell title="Account" active="account">
+  <Account client:only="preact">
+    <div slot="fallback" class="kali-view-loading">Loading account</div>
+  </Account>
+</Shell>

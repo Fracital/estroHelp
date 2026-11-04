@@ -1,0 +1,56 @@
+/* Admin dashboard additions on top of the ported admin.css block in account.css. */
+
+.admin-status { margin: 0; padding: 10px 20px 0; }
+.admin-toolbar-title { font-size: 13px; color: var(--ui-text); }
+.admin-toolbar-note { font-size: 12px; color: var(--ui-text-subtle); }
+.admin-toolbar-note strong { color: var(--ui-text); }
+
+/* Users: the email column truncates; nothing in a row may wrap into the next column. */
+.admin-users { --users-cols: minmax(150px, 1.5fr) minmax(170px, 1.6fr) minmax(90px, .9fr) 82px 82px 96px 110px; }
+.admin-users .admin-email { min-width: 0; }
+.admin-users .admin-email-addr {
+  display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--ui-text-subtle); font-size: 12px; margin-bottom: 4px;
+}
+.admin-users .admin-flags .account-badge,
+.admin-users .admin-email .account-badge { white-space: nowrap; }
+.admin-users .admin-actions { white-space: nowrap; flex-wrap: nowrap; }
+.admin-users .admin-actions .settings-action { white-space: nowrap; }
+.admin-users .admin-joined .cell-sub { white-space: nowrap; }
+.admin-users .admin-num .cell-sub { white-space: nowrap; }
+
+/* Audit: action badge, actor to target, time. Same shape as Abstract's. */
+.admin-row.audit {
+  grid-template-columns: auto minmax(0, 1fr) auto; align-items: center;
+}
+.admin-audit-action { white-space: nowrap; font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px; }
+.admin-audit-body { min-width: 0; }
+.admin-audit-body .cell-dim { display: block; margin-top: 2px; overflow-wrap: anywhere; }
+.admin-audit-when { white-space: nowrap; font-size: 11px; }
+
+/* Numbered pagination. */
+.admin-pagination-gap { color: var(--ui-text-subtle); font-size: 12px; padding: 0 2px; }
+.admin-pagination-btn.admin-pagination-current { border-color: var(--ui-accent); background: var(--ui-accent); color: var(--theme-on-accent); font-weight: 600; }
+.admin-pagination-btn:not(:disabled):hover { background: var(--ui-glass-hover); border-color: var(--ui-border-strong); }
+
+/* Manage modal rows that hold a button instead of a switch. */
+.manage-ent-row .settings-action { flex: none; }
+.manage-ent-row b.ent-on { white-space: nowrap; }
+.manage-delete-row { margin-top: 12px; }
+.manage-delete-row .manage-switch-label { font-weight: 400; color: var(--ui-text-subtle); }
+.manage-grant { padding: 0; }
+.manage-grant input[type="text"], .manage-grant input:not([type]), .manage-grant input[type="number"] {
+  padding: 7px 10px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-glass); color: var(--ui-text); font-size: 13px; outline: none;
+}
+.manage-grant input:focus { border-color: var(--ui-accent); }
+.manage-hint { margin: 0 0 10px; }
+
+@media (max-width: 720px) {
+  .admin-row.audit { grid-template-columns: 1fr; gap: 6px; }
+  .admin-audit-when { justify-self: start; }
+}
+
+/* Light schemes: the ported badges are dark pills; tint them from the scheme instead. */
+html[data-scheme="light"] .account-badge.on { border-color: #9bd3a8; background: #e6f7ea; color: #1d6b35; }
+html[data-scheme="light"] .account-badge.warn { border-color: #e2d08a; background: #fbf4d6; color: #7a5d00; }
+html[data-scheme="light"] .account-badge.danger { background: rgba(255, 70, 88, 0.1); }

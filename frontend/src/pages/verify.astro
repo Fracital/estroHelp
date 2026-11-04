@@ -1,0 +1,9 @@
+---
+import Shell from '../layouts/Shell.astro';
+import VerifyEmail from '../components/VerifyEmail';
+---
+<Shell title="Verify email" active="account">
+  <VerifyEmail client:only="preact">
+    <div slot="fallback" class="kali-view-loading">Loading verify email</div>
+  </VerifyEmail>
+</Shell>

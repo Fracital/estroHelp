@@ -1,0 +1,792 @@
+/* Browser-shell chrome ported from Abstract AI (App.css + TopBar.css). Class names carry a kali- prefix. */
+/* Shell: icon rail | tab rail | workspace. Flat, hairline dividers, no
+   gradients; every colour comes from the theme tokens in index.css. */
+.kali-shell {
+  display: grid;
+  grid-template-columns: 56px 252px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  padding: 0 10px 10px 0;
+  background: var(--shell-bg);
+  color: var(--shell-text);
+}
+
+.kali-side-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--shell-line);
+}
+
+.kali-content {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  padding: 10px 0 0 10px;
+}
+
+.kali-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0 10px;
+  border-right: 1px solid var(--shell-line);
+}
+
+.kali-rail-top,
+.kali-rail-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.kali-rail-btn {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 10px;
+  color: var(--shell-muted);
+}
+
+.kali-rail-btn:hover {
+  background: var(--shell-hover);
+  color: var(--shell-text);
+}
+
+.kali-rail-btn.active {
+  background: var(--shell-accent);
+  color: var(--shell-on-accent);
+}
+
+.kali-rail-btn.active:hover {
+  background: color-mix(in srgb, var(--shell-accent) 88%, var(--shell-bg));
+}
+
+.kali-rail-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Vertical tabs */
+.kali-tab-rail {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 10px 8px 10px;
+}
+
+.kali-tab-rail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  padding: 0 4px 0 10px;
+  margin-bottom: 6px;
+}
+
+.kali-tab-rail-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--shell-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.kali-tab-rail-new {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 7px;
+  color: var(--shell-muted);
+}
+
+.kali-tab-rail-new:hover {
+  background: var(--shell-hover);
+  color: var(--shell-text);
+}
+
+.kali-tab-rail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  flex: 1;
+  margin: 0 -8px;
+  padding: 0 8px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.kali-tab-rail-list::-webkit-scrollbar {
+  display: none;
+}
+
+.kali-tab-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-width: 0;
+  height: 40px;
+  border-radius: 9px;
+  color: var(--shell-muted);
+}
+
+.kali-tab-item:hover {
+  background: var(--shell-hover);
+  color: var(--shell-text);
+}
+
+.kali-tab-item.active {
+  background: var(--shell-raised);
+  color: var(--shell-text);
+}
+
+.kali-tab-item-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+  height: 100%;
+  padding: 0 4px 0 11px;
+  color: inherit;
+  text-align: left;
+}
+
+.kali-tab-item-main svg {
+  flex: 0 0 auto;
+  opacity: 0.7;
+}
+
+.kali-tab-item.active .kali-tab-item-main svg {
+  opacity: 1;
+}
+
+.kali-tab-item-text {
+  display: grid;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.kali-tab-item-title,
+.kali-tab-item-detail {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kali-tab-item-title {
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+.kali-tab-item-detail {
+  color: var(--shell-faint);
+  font-size: 10.5px;
+}
+
+.kali-tab-item.active .kali-tab-item-detail,
+.kali-tab-item:hover .kali-tab-item-detail {
+  color: var(--shell-muted);
+}
+
+.kali-tab-item-close {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  margin-right: 6px;
+  padding: 0;
+  border-radius: 6px;
+  color: var(--shell-muted);
+  opacity: 0;
+  transition: opacity 0.12s ease, background-color 0.12s ease, color 0.12s ease;
+}
+
+.kali-tab-item:hover .kali-tab-item-close,
+.kali-tab-item.active .kali-tab-item-close,
+.kali-tab-item-close:focus-visible {
+  opacity: 1;
+}
+
+.kali-tab-item-close:hover {
+  background: var(--shell-line-strong);
+  color: var(--shell-text);
+}
+
+.kali-tab-rail-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  height: 34px;
+  margin-top: 6px;
+  padding: 0 11px;
+  border: 1px dashed var(--shell-line);
+  border-radius: 9px;
+  color: var(--shell-faint);
+  font-size: 12px;
+  font-weight: 500;
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.kali-tab-rail-add:hover {
+  border-color: var(--shell-line-strong);
+  border-style: solid;
+  background: var(--shell-hover);
+  color: var(--shell-text);
+}
+
+.kali-tab-rail-add svg {
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.kali-tab-rail-add:hover svg {
+  transform: rotate(90deg);
+}
+
+/* Motion: tabs slide in as they open, the active marker grows in, views
+   fade up when switched. */
+@keyframes tab-enter {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Opacity only: a transform left behind by fill-mode "both" would turn every
+   page root into a containing block and break position: fixed overlays. */
+@keyframes view-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.kali-tab-item {
+  animation: tab-enter 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.kali-tab-item-main svg {
+  transition: opacity 0.15s ease, transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.kali-tab-item:hover .kali-tab-item-main svg {
+  transform: scale(1.08);
+}
+
+.kali-workspace-view > * {
+  animation: view-enter 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.kali-rail-btn {
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.kali-rail-btn:hover {
+  transform: translateY(-1px);
+}
+
+.kali-rail-btn.active {
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kali-tab-item,
+  .kali-workspace-view > * {
+    animation: none;
+  }
+}
+
+.kali-workspace {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--shell-line);
+  border-radius: 14px;
+  background: var(--shell-surface);
+  overflow: hidden;
+}
+
+/* ---------- holiday snow (Settings > Holiday snow) ---------- */
+.snow-drift {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  width: 100%;
+  height: 30px;
+  fill: #fbfdff;
+  filter: drop-shadow(0 -2px 3px rgba(120, 150, 190, 0.35));
+  pointer-events: none;
+}
+
+/* Sits in the drift at the bottom right, over the page corner. */
+.christmas-tree {
+  position: fixed;
+  right: 4px;
+  bottom: 4px;
+  z-index: 4;
+  /* Fixed width keeps it clear of the home footer's right-hand links. */
+  width: 78px;
+  height: auto;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.45));
+  pointer-events: none;
+  user-select: none;
+}
+
+/* The home footer's right-hand links sit where the tree stands. */
+.kali-shell[data-snow="on"] .kali-homepage-footer { right: 96px; }
+
+/* The site background sits behind the whole shell (App.tsx renders it as the
+   first child of .kali-shell); the panels above stack over it. */
+.kali-workspace-background {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.kali-shell .kali-rail,
+.kali-shell > .kali-side-panel,
+.kali-shell > .kali-content {
+  position: relative;
+  z-index: 1;
+}
+
+/* No app-shell frame around the chat: live Discord is full-bleed, so the
+   workspace's 1px gray border + 22px radius (which clips the square chat's
+   corners) drops away when the workspace contains the chat page. Scoped by
+   :has() so other pages keep the rounded frame. The dot-field background stays
+   visible behind the chat (see pages/chat/chat-backdrop.css). */
+.kali-workspace-view {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+
+/* Music renders nothing here; don't let the empty layer eat its clicks. */
+.kali-workspace-view:empty {
+  display: none;
+}
+
+.kali-view-loading {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--ui-text-muted);
+  font-size: 13px;
+}
+
+/* Horizontal tabs (the default, and forced on narrow screens): the tab list
+   runs as a strip above the address bar, shortcuts and "+" at its end. */
+[data-tabs="horizontal"].kali-shell {
+  grid-template-columns: 56px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+[data-tabs="horizontal"] .kali-rail {
+  grid-row: 1 / -1;
+}
+
+[data-tabs="horizontal"] .kali-side-panel {
+  border-right: 0;
+}
+
+[data-tabs="horizontal"] .kali-content {
+  padding: 4px 0 0 10px;
+}
+
+[data-tabs="horizontal"] .kali-tab-rail {
+  order: -1;
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 8px 0;
+}
+
+[data-tabs="horizontal"] .kali-tab-rail-head {
+  display: none;
+}
+
+[data-tabs="horizontal"] .kali-tab-rail-list {
+  flex-direction: row;
+  gap: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+[data-tabs="horizontal"] .kali-tab-item {
+  flex: 0 0 180px;
+  height: 34px;
+}
+
+[data-tabs="horizontal"] .kali-tab-item-detail {
+  display: none;
+}
+
+[data-tabs="horizontal"] .kali-tab-rail-add {
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  justify-content: center;
+  border-style: solid;
+}
+
+[data-tabs="horizontal"] .kali-tab-rail-add span {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .kali-shell {
+    padding: 0 6px 6px 0;
+  }
+
+  [data-tabs="horizontal"].kali-shell {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+
+  [data-tabs="horizontal"] .kali-tab-item {
+    flex-basis: 150px;
+  }
+
+  .kali-rail-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .kali-workspace {
+    border-radius: 12px;
+  }
+}
+.kali-persistent-music {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.kali-holy-link {
+  cursor: pointer;
+}
+
+.kali-persistent-music.active {
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* Same treatment for browser tabs: every open site stays mounted (and keeps
+   its page state) while only the active one is visible. */
+.kali-persistent-browser {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.kali-persistent-browser.active {
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.kali-persistent-music > .kali-music-view {
+  height: 100%;
+}
+
+.kali-rail-discord {
+  color: var(--ui-text-muted);
+}
+.kali-rail-discord:hover {
+  color: var(--ui-text);
+  background: var(--shell-raised);
+}
+.kali-rail-discord svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+
+@keyframes panel-enter {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes strip-enter {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes rail-icon-enter {
+  from { opacity: 0; transform: translateY(6px) scale(0.9); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.kali-side-panel {
+  animation: panel-enter 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+[data-tabs="horizontal"] .kali-side-panel {
+  animation-name: strip-enter;
+}
+
+
+
+.kali-tab-item-main {
+  transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.kali-tab-item:hover .kali-tab-item-main {
+  transform: translateX(2px);
+}
+
+[data-tabs="horizontal"] .kali-tab-item:hover .kali-tab-item-main {
+  transform: none;
+}
+
+.kali-tab-item-close {
+  transform: scale(0.8);
+}
+
+.kali-tab-item:hover .kali-tab-item-close,
+.kali-tab-item.active .kali-tab-item-close {
+  transform: scale(1);
+}
+
+.kali-tab-item-close:hover {
+  transform: scale(1.08) rotate(90deg);
+}
+
+.kali-tab-item:active {
+  transform: scale(0.985);
+}
+
+.kali-workspace {
+  transition: border-color 0.2s ease, border-radius 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.kali-address {
+  transition: border-color 0.15s ease, color 0.15s ease, transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.kali-address:focus-within {
+  transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kali-side-panel,
+  .kali-rail .kali-rail-btn {
+    animation: none;
+  }
+}
+
+/* ---- Clear surfaces (Settings > Appearance > Surfaces) ---------------------
+   The theme tokens are translucent (lib/theme.ts SURFACE_ALPHA) so the site
+   background shows through the sidebar, tabs and every page. Panels get a
+   small backdrop blur the user sets (--surface-blur, App.tsx; 0 = none).
+   backdrop-filter re-blurs whatever moves behind it every frame, so the cost
+   grows with the radius - Settings says so next to the slider. */
+.kali-shell[data-surface="clear"] .kali-workspace {
+  border-color: color-mix(in srgb, var(--theme-fg) 14%, transparent);
+}
+.kali-shell[data-surface="clear"][data-blur="on"] .kali-rail,
+.kali-shell[data-surface="clear"][data-blur="on"] > .kali-side-panel,
+.kali-shell[data-surface="clear"][data-blur="on"] .kali-workspace,
+.kali-shell[data-surface="clear"][data-blur="on"] .kali-homepage-search {
+  -webkit-backdrop-filter: blur(var(--surface-blur, 6px));
+  backdrop-filter: blur(var(--surface-blur, 6px));
+}
+
+/* Menus, dialogs and popovers stay readable over a see-through UI. They are
+   small and only exist while open, so the blur is cheap. */
+:root[data-surface="clear"] :is([role="menu"], [role="listbox"], [role="dialog"], [role="tooltip"]) {
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  backdrop-filter: blur(16px) saturate(150%);
+}
+
+/* Veil over the animated background (Settings > Appearance > Background dim):
+   the theme background at --bg-dim opacity, so it never glares behind text.
+   The colours themselves come from the theme (components/visual/fx-theme.ts). */
+.kali-workspace-background .kali-bg-dim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: var(--theme-bg);
+  opacity: var(--bg-dim, 0.6);
+}
+/* Opaque theme base under the transparent background canvas. */
+.kali-workspace-background {
+  background: var(--theme-bg);
+}
+
+
+/* ---- address bar (TopBar.css) ---- */
+.kali-top-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: 12px 8px 4px;
+}
+
+.kali-browser-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 2px;
+}
+
+.kali-browser-actions button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 8px;
+  color: var(--shell-muted);
+}
+
+.kali-browser-actions button:hover {
+  background: var(--shell-hover);
+  color: var(--shell-text);
+}
+
+.kali-address {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--shell-line);
+  border-radius: 10px;
+  background: var(--shell-raised);
+  color: var(--shell-faint);
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.kali-address:focus-within {
+  border-color: var(--shell-line-strong);
+  color: var(--shell-muted);
+}
+
+.kali-address input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--shell-text);
+  font-size: 12.5px;
+}
+
+.kali-address input::placeholder {
+  color: var(--shell-faint);
+}
+
+/* Horizontal tabs: the address bar becomes a centred row under the strip. */
+[data-tabs="horizontal"] .kali-top-bar {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  height: 46px;
+  padding: 4px 8px 6px;
+}
+
+[data-tabs="horizontal"] .kali-browser-actions {
+  flex: 0 0 auto;
+}
+
+[data-tabs="horizontal"] .kali-address {
+  max-width: 680px;
+  height: 34px;
+  margin: 0 auto;
+}
+
+/* Vertical / horizontal tab switch: top-right of the panel, under the "+". */
+.kali-tab-layout-toggle {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 8px;
+  color: var(--shell-muted);
+}
+
+.kali-tab-layout-toggle:hover {
+  background: var(--shell-hover);
+  color: var(--shell-text);
+}
+
+.kali-top-bar {
+  position: relative;
+}
+
+.kali-tab-layout-toggle {
+  position: absolute;
+  top: 12px;
+  right: 10px;
+}
+
+[data-tabs="horizontal"] .kali-tab-layout-toggle {
+  position: static;
+  flex: 0 0 auto;
+  margin-left: auto;
+  width: 32px;
+  height: 32px;
+}
+
+/* Static pages (landing, docs, legal) scroll inside the shell view. */
+.kali-page-scroll { overflow-y: auto; overflow-x: hidden; }
+.kali-page-scroll > astro-slot, .kali-page-scroll > astro-static-slot { display: block; min-height: 100%; }
+.kali-page-scroll .kali-page-foot { padding: 28px 0 40px; }
+
+/* ---------- Frameless shell (Kali) ----------
+   No tab strip, address bar or inset window: the rail sits on the left and the
+   page fills the rest edge to edge. Theme and snow behaviour are unchanged. */
+.kali-shell, [data-tabs="horizontal"].kali-shell {
+  grid-template-columns: 56px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  padding: 0;
+}
+.kali-content, [data-tabs="horizontal"] .kali-content { padding: 0; }
+.kali-workspace { border: 0; border-radius: 0; }
+.kali-shell[data-surface="clear"] .kali-workspace { border-color: transparent; }
+@media (max-width: 640px) {
+  .kali-shell, [data-tabs="horizontal"].kali-shell { grid-template-columns: 48px minmax(0, 1fr); padding: 0; }
+  .kali-workspace { border-radius: 0; }
+}
+
+/* Client-side navigation: only the content column fades; the rail, the
+   background and the shell frame persist untouched. */
+::view-transition-old(kali-content), ::view-transition-new(kali-content) { animation-duration: .12s; }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(kali-content), ::view-transition-new(kali-content) { animation: none; }
+}

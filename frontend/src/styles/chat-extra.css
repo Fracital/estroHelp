@@ -1,0 +1,30 @@
+/* A thread that is open in its own window: listed, muted, click docks it back. */
+.kali-chat.popped .kali-chat-main { opacity: .62; }
+.kali-chat.popped .kali-chat-main > svg { color: var(--theme-accent); }
+.kali-chat.popped:hover .kali-chat-main { opacity: .85; }
+
+/* Without the brand row the list starts higher; keep the first control off the edge. */
+.kali-ai-sidebar { padding-top: 14px; }
+
+/* Resizable chat list: the width is a CSS variable on .kali-ai, set from localStorage. */
+.kali-ai .kali-ai-sidebar { flex-basis: var(--kali-sidebar-w, 260px); width: var(--kali-sidebar-w, 260px); }
+.kali-sidebar-handle {
+  flex: 0 0 6px; margin-left: -3px; cursor: col-resize; z-index: 3; position: relative;
+  background: transparent; transition: background .12s;
+}
+.kali-sidebar-handle:hover, .kali-ai.resizing .kali-sidebar-handle { background: color-mix(in srgb, var(--theme-accent) 55%, transparent); }
+.kali-ai.resizing, .kali-ai.resizing * { user-select: none; cursor: col-resize; }
+.kali-ai:not(.sidebar-open) .kali-sidebar-handle { display: none; }
+/* Resizable workspace pane: same mechanism, dragging left grows it. */
+.kali-ai .kali-ws { flex-basis: var(--kali-ws-w, min(46%, 640px)); width: var(--kali-ws-w, auto); max-width: 70vw; }
+.kali-ws-handle {
+  flex: 0 0 6px; margin-right: -3px; cursor: col-resize; z-index: 3; position: relative;
+  background: transparent; transition: background .12s;
+}
+.kali-ws-handle:hover, .kali-ai.resizing .kali-ws-handle { background: color-mix(in srgb, var(--theme-accent) 55%, transparent); }
+@media (max-width: 900px) {
+  .kali-ws-handle { display: none; }
+  .kali-ai .kali-ws { flex-basis: auto; width: auto; max-width: none; }
+  .kali-sidebar-handle { display: none; }
+  .kali-ai .kali-ai-sidebar { flex-basis: auto; width: min(300px, 84vw); }
+}

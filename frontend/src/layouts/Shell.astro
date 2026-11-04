@@ -1,0 +1,34 @@
+---
+import Base from './Base.astro';
+import Rail, { type RailItem } from '../components/Rail';
+import ShellFx from '../components/ShellFx';
+
+interface Props {
+  title?: string;
+  description?: string;
+  /** Which rail destination is highlighted. */
+  active?: RailItem;
+  /** Static pages scroll inside the shell; app pages manage their own height. */
+  scroll?: boolean;
+}
+const { title, description, active = 'none', scroll = false } = Astro.props;
+---
+<Base title={title} description={description} fullscreen>
+  <div class="kali-shell" data-surface="clear" data-blur="on" data-snow="off">
+    <script is:inline data-astro-rerun>
+      // Mirror the pre-paint <html> flags onto the shell before the islands wake.
+      (function () {
+        var s = document.currentScript && document.currentScript.parentElement;
+        var d = document.documentElement.dataset;
+        if (s) { s.dataset.blur = d.blur || 'on'; s.dataset.snow = d.snow || 'off'; }
+      })();
+    </script>
+    <Rail client:load transition:persist="rail" active={active} />
+    <div class="kali-content" transition:name="kali-content" transition:animate="fade">
+      <main class="kali-workspace">
+        <div class:list={['kali-workspace-view', { 'kali-page-scroll': scroll }]}><slot /></div>
+      </main>
+    </div>
+    <ShellFx client:load transition:persist="shellfx" />
+  </div>
+</Base>

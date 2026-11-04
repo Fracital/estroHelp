@@ -1,0 +1,9 @@
+---
+import Shell from '../layouts/Shell.astro';
+import ResetPassword from '../components/ResetPassword';
+---
+<Shell title="Reset password" active="account">
+  <ResetPassword client:only="preact">
+    <div slot="fallback" class="kali-view-loading">Loading reset password</div>
+  </ResetPassword>
+</Shell>

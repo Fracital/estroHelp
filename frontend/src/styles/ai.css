@@ -1,0 +1,1631 @@
+/* ==========================================================================
+ * Abstract AI: Kimi-style chat layout
+ *   - left sidebar: brand, New chat, search, history grouped by recency, account footer
+ *   - centred message column with per-message actions
+ *   - composer card centred at the bottom (welcome state: centred on the page),
+ *     with the model picker in its toolbar
+ * Colours, type and radii come from the theme tokens in index.css / App.css.
+ * ========================================================================== */
+
+.kali-ai {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  color: var(--theme-fg);
+  background: transparent;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.kali-ai button {
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+.kali-ai button:disabled { cursor: default; }
+
+/* ---------- sidebar ---------- */
+.kali-ai-sidebar {
+  display: flex;
+  flex: 0 0 260px;
+  width: 260px;
+  min-height: 0;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 10px 12px;
+  border-right: 1px solid var(--shell-line);
+  background: color-mix(in srgb, var(--theme-bg) 72%, transparent);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+.kali-ai-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 2px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.kali-ai-brand svg { color: var(--theme-fg); }
+.kali-new {
+  display: flex;
+  width: 100%;
+  height: 38px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--shell-line-strong);
+  border-radius: 10px;
+  background: var(--shell-raised);
+  font-size: 13px;
+  font-weight: 600;
+}
+.kali-new:hover { background: var(--shell-hover); }
+.kali-chat-search {
+  display: flex;
+  height: 34px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--shell-hover);
+  border-radius: 10px;
+  color: var(--shell-muted);
+  transition: border-color 0.15s ease;
+}
+.kali-chat-search:focus-within { border-color: var(--shell-line-strong); }
+.kali-chat-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--theme-fg);
+  font: inherit;
+  font-size: 13px;
+}
+.kali-chat-list {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  margin: 0 -4px;
+  padding: 0 4px;
+  scrollbar-width: thin;
+}
+.kali-chat-group { display: flex; flex-direction: column; gap: 2px; }
+.kali-label {
+  margin: 0 10px 4px;
+  color: var(--shell-faint);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.kali-chat-none {
+  margin: 4px 10px;
+  color: var(--shell-faint);
+  font-size: 12px;
+}
+
+.kali-chat {
+  position: relative;
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  color: var(--shell-muted);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.kali-chat:hover,
+.kali-chat:focus-within {
+  background: color-mix(in srgb, var(--theme-fg) 6%, transparent);
+  color: var(--theme-fg);
+}
+.kali-chat.active {
+  background: color-mix(in srgb, var(--theme-fg) 11%, transparent);
+  color: var(--theme-fg);
+}
+.kali-chat-main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 4px 0 10px;
+  color: inherit;
+  text-align: left;
+}
+.kali-chat-main svg { flex: none; opacity: 0.6; }
+.kali-chat.active .kali-chat-main svg { opacity: 1; }
+.kali-chat-main span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kali-chat-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  padding-right: 6px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.kali-chat:hover .kali-chat-actions,
+.kali-chat:focus-within .kali-chat-actions,
+.kali-chat.active .kali-chat-actions { opacity: 1; }
+.kali-chat-actions button {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--shell-muted);
+}
+.kali-chat-actions button:hover {
+  background: color-mix(in srgb, var(--theme-fg) 10%, transparent);
+  color: var(--theme-fg);
+}
+.kali-chat-actions button.danger:hover { color: #ff8f8f; }
+.kali-chat.renaming { gap: 8px; padding: 0 8px 0 10px; }
+.kali-chat.renaming svg { flex: none; opacity: 0.6; }
+.kali-chat.renaming input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--shell-line-strong);
+  border-radius: 7px;
+  background: var(--shell-surface);
+  color: var(--theme-fg);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.kali-ai-sidebar footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+  margin-top: auto;
+  padding: 6px 6px 2px;
+  border-top: 1px solid var(--shell-hover);
+  color: var(--shell-muted);
+  font-size: 11px;
+}
+.kali-footer-usage { display: flex; align-items: center; flex: 0 0 100%; min-height: 22px; padding: 0 10px; }
+.kali-signout {
+  display: inline-flex;
+  max-width: 140px;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  overflow: hidden;
+  border-radius: 8px;
+  color: var(--shell-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.kali-signout:hover {
+  background: var(--shell-raised);
+  color: var(--theme-fg);
+}
+
+/* ---------- main column ---------- */
+.kali-ai-main {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  background: transparent;
+}
+.kali-ai-main > header {
+  display: flex;
+  flex: none;
+  min-height: 52px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 16px 0 12px;
+  border-bottom: 1px solid var(--shell-line);
+  background: color-mix(in srgb, var(--theme-bg) 60%, transparent);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.kali-ai-main.is-welcome > header {
+  border-bottom-color: transparent;
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.kali-ai-head { display: flex; min-width: 0; align-items: center; gap: 10px; }
+.kali-ai-title { display: grid; min-width: 0; gap: 2px; }
+.kali-ai-title strong {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kali-ai-title small { color: var(--shell-muted); font-size: 11px; }
+.kali-header-tools { display: flex; align-items: center; gap: 6px; }
+.kali-head-btn,
+.kali-share-btn,
+.kali-icon-btn {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--shell-muted);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.kali-head-btn:hover,
+.kali-share-btn:hover,
+.kali-icon-btn:hover {
+  background: color-mix(in srgb, var(--theme-fg) 8%, transparent);
+  color: var(--theme-fg);
+}
+.kali-share-btn.sharing {
+  color: #6ee7a8;
+  background: rgba(110, 231, 168, 0.12);
+}
+
+/* ---------- message stream ---------- */
+.kali-chat-scroll {
+  position: relative;
+  display: block;
+  width: min(780px, 100%);
+  min-height: 0;
+  flex: 1;
+  align-self: center;
+  overflow-y: auto;
+  padding: 28px 20px 24px;
+  scroll-behavior: smooth;
+}
+.kali-chat-scroll.is-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 20px 40px;
+}
+
+.kali-message {
+  position: relative;
+  margin-bottom: 28px;
+  animation: kaliMsgIn 0.35s ease both;
+}
+.kali-chat-scroll > .kali-message:last-child { margin-bottom: 0; }
+.kali-message.user {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.kali-message.user > p {
+  max-width: 80%;
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: 18px;
+  background: var(--shell-raised);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  line-height: 1.55;
+}
+.kali-message.user .kali-message-attachments { justify-content: flex-end; }
+.kali-assistant {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: var(--shell-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.kali-assistant svg { color: var(--theme-fg); }
+.kali-message footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  color: var(--shell-faint);
+  font-size: 11px;
+}
+
+/* Per-message actions. User actions appear under the bubble on hover/focus;
+ * assistant actions sit under the reply and are always faintly visible. */
+.kali-msg-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.kali-message.user .kali-msg-actions { margin-top: 4px; }
+.kali-message.assistant .kali-msg-actions { opacity: 0.7; }
+.kali-message:hover .kali-msg-actions,
+.kali-message:focus-within .kali-msg-actions { opacity: 1; }
+.kali-message footer .kali-msg-actions { margin-left: auto; }
+.kali-msg-actions button {
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  color: var(--shell-muted);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.kali-msg-actions button:hover {
+  background: color-mix(in srgb, var(--theme-fg) 8%, transparent);
+  color: var(--theme-fg);
+}
+.kali-msg-actions button:disabled { opacity: 0.4; cursor: default; }
+
+/* Inline edit of a user message */
+.kali-msg-edit { display: flex; width: min(640px, 100%); flex-direction: column; gap: 8px; }
+.kali-msg-edit textarea {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+  padding: 12px 14px;
+  border: 1px solid var(--shell-line-strong);
+  border-radius: 14px;
+  background: var(--shell-raised);
+  color: var(--theme-fg);
+  font: inherit;
+  line-height: 1.5;
+}
+.kali-msg-edit textarea:focus { outline: none; border-color: var(--shell-faint); }
+.kali-msg-edit-bar { display: flex; justify-content: flex-end; gap: 8px; }
+.kali-msg-edit-bar button {
+  padding: 7px 14px;
+  border: 1px solid var(--shell-line-strong);
+  border-radius: 9px;
+  background: var(--shell-raised);
+  color: var(--theme-fg);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.kali-msg-edit-bar button:hover { background: var(--shell-hover); }
+.kali-msg-edit-bar button:last-child {
+  border-color: var(--theme-fg);
+  background: var(--theme-fg);
+  color: var(--theme-bg);
+}
+.kali-msg-edit-bar button:last-child:hover { opacity: 0.9; }
+.kali-msg-edit-bar button:disabled { opacity: 0.45; cursor: default; }
+
+/* Answer body */
+.kali-markdown { color: var(--theme-fg); line-height: 1.7; overflow-wrap: anywhere; }
+.kali-markdown p { margin: 0 0 12px; }
+.kali-markdown p:last-child { margin-bottom: 0; }
+.kali-markdown h1,
+.kali-markdown h2,
+.kali-markdown h3,
+.kali-markdown h4 { margin: 18px 0 8px; font-weight: 700; line-height: 1.3; }
+.kali-markdown h1 { font-size: 19px; }
+.kali-markdown h2 { font-size: 16px; }
+.kali-markdown h3 { font-size: 14px; }
+.kali-markdown h4 { font-size: 13px; }
+.kali-markdown h1:first-child,
+.kali-markdown h2:first-child,
+.kali-markdown h3:first-child { margin-top: 0; }
+.kali-markdown ul,
+.kali-markdown ol { margin: 0 0 12px; padding-left: 22px; }
+.kali-markdown li { margin: 3px 0; }
+.kali-markdown code {
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--shell-raised);
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+.kali-markdown .kali-codeblock code { padding: 0; border-radius: 0; background: none; }
+.kali-markdown pre { overflow: auto; margin: 0; padding: 0; border: 0; background: transparent; }
+.kali-markdown blockquote {
+  margin: 0 0 12px;
+  padding: 6px 14px;
+  border-left: 3px solid var(--shell-line-strong);
+  border-radius: 0 8px 8px 0;
+  background: var(--shell-raised);
+  color: var(--shell-muted);
+}
+.kali-markdown a { color: var(--theme-accent); text-decoration: none; }
+.kali-markdown a:hover { text-decoration: underline; }
+.kali-markdown hr { margin: 16px 0; border: 0; border-top: 1px solid var(--shell-raised); }
+.kali-markdown strong { color: inherit; font-weight: 700; }
+.kali-markdown .katex { font-size: 1.05em; }
+.kali-markdown .katex-display { margin: 12px 0; overflow-x: auto; }
+.kali-table-wrap { overflow-x: auto; margin: 0 0 12px; }
+.kali-markdown table { min-width: 40%; border-collapse: collapse; font-size: 12.5px; }
+.kali-markdown th,
+.kali-markdown td { padding: 6px 12px; border: 1px solid var(--shell-hover); text-align: left; }
+.kali-markdown th { background: var(--shell-surface); color: var(--theme-fg); font-weight: 600; }
+.kali-markdown tr:nth-child(even) td { background: var(--shell-raised); }
+.kali-codeblock {
+  margin: 0 0 12px;
+  border: 1px solid var(--shell-raised);
+  border-radius: 10px;
+  background: var(--shell-surface);
+  overflow: hidden;
+}
+.kali-codeblock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px 5px 12px;
+  border-bottom: 1px solid var(--shell-hover);
+  background: var(--shell-surface);
+}
+.kali-codeblock-lang { color: var(--shell-muted); font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace; font-size: 11px; }
+.kali-codeblock-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--shell-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.kali-codeblock-copy:hover {
+  background: color-mix(in srgb, var(--theme-fg) 7%, transparent);
+  color: var(--theme-fg);
+}
+/* abulxt pads its highlighter inline (12px 14px, 12.5px/1.6); the hljs output
+   here carries no styles of its own, so the block supplies them. */
+.kali-markdown .kali-codeblock pre {
+  overflow: auto;
+  margin: 0;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  tab-size: 2;
+}
+.kali-markdown .kali-codeblock code { display: block; font: inherit; white-space: pre; color: var(--theme-fg); }
+.kali-markdown code { padding: 2px 6px; }
+
+/* Token colours, in the spirit of the One Dark palette abulxt uses. */
+.kali-markdown .hljs-comment,
+.kali-markdown .hljs-quote { color: #7f848e; font-style: italic; }
+.kali-markdown .hljs-keyword,
+.kali-markdown .hljs-selector-tag,
+.kali-markdown .hljs-subst,
+.kali-markdown .hljs-meta { color: #c678dd; }
+.kali-markdown .hljs-number,
+.kali-markdown .hljs-literal,
+.kali-markdown .hljs-variable,
+.kali-markdown .hljs-template-variable,
+.kali-markdown .hljs-attr { color: #d19a66; }
+.kali-markdown .hljs-string,
+.kali-markdown .hljs-doctag,
+.kali-markdown .hljs-regexp,
+.kali-markdown .hljs-addition { color: #98c379; }
+.kali-markdown .hljs-title,
+.kali-markdown .hljs-section,
+.kali-markdown .hljs-selector-id,
+.kali-markdown .hljs-function .hljs-title { color: #61afef; }
+.kali-markdown .hljs-type,
+.kali-markdown .hljs-class .hljs-title,
+.kali-markdown .hljs-built_in { color: #e5c07b; }
+.kali-markdown .hljs-attribute,
+.kali-markdown .hljs-name,
+.kali-markdown .hljs-tag { color: #e06c75; }
+.kali-markdown .hljs-symbol,
+.kali-markdown .hljs-bullet,
+.kali-markdown .hljs-link { color: #56b6c2; }
+.kali-markdown .hljs-deletion { color: #e06c75; background: rgba(224, 108, 117, 0.12); }
+.kali-markdown .hljs-emphasis { font-style: italic; }
+.kali-markdown .hljs-strong { font-weight: 700; }
+html[data-scheme="light"] .kali-markdown .hljs-comment,
+html[data-scheme="light"] .kali-markdown .hljs-quote { color: #a0a1a7; }
+html[data-scheme="light"] .kali-markdown .hljs-keyword,
+html[data-scheme="light"] .kali-markdown .hljs-meta { color: #a626a4; }
+html[data-scheme="light"] .kali-markdown .hljs-string,
+html[data-scheme="light"] .kali-markdown .hljs-addition { color: #50a14f; }
+html[data-scheme="light"] .kali-markdown .hljs-title,
+html[data-scheme="light"] .kali-markdown .hljs-section { color: #4078f2; }
+html[data-scheme="light"] .kali-markdown .hljs-type,
+html[data-scheme="light"] .kali-markdown .hljs-built_in { color: #c18401; }
+html[data-scheme="light"] .kali-markdown .hljs-number,
+html[data-scheme="light"] .kali-markdown .hljs-attr { color: #986801; }
+html[data-scheme="light"] .kali-markdown .hljs-name,
+html[data-scheme="light"] .kali-markdown .hljs-tag { color: #e45649; }
+.kali-streaming { opacity: 0.95; }
+.kali-stream-text { white-space: pre-wrap; word-break: break-word; }
+
+/* Thinking dots while a reply has not started */
+.kali-thinking { display: inline-flex; gap: 5px; }
+.kali-thinking b {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--shell-muted);
+  animation: kaliBlink 1.1s infinite ease-in-out;
+}
+.kali-thinking b:nth-child(2) { animation-delay: 0.15s; }
+.kali-thinking b:nth-child(3) { animation-delay: 0.3s; }
+
+/* ---------- welcome state ---------- */
+.kali-ai-loading { align-items: center; justify-content: center; min-height: 100%; width: 100%; }
+.kali-empty {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: 0;
+  text-align: center;
+  animation: kaliHeroIn 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.kali-empty-hero {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+}
+.kali-empty-mark {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  margin-bottom: 10px;
+  border: 1px solid var(--shell-line-strong);
+  border-radius: 16px;
+  background: var(--shell-raised);
+  color: var(--theme-fg);
+  animation: kaliFloat 3.2s ease-in-out infinite;
+}
+.kali-empty h1 {
+  margin: 0;
+  font-size: clamp(26px, 4vw, 34px);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+.kali-empty-sub {
+  margin: 0;
+  color: var(--shell-muted);
+  font-size: 15px;
+}
+
+/* ---------- composer ---------- */
+.kali-composer {
+  position: relative;
+  align-self: center;
+  width: min(780px, calc(100% - 32px));
+  margin: 0 auto 16px;
+  border: 1px solid var(--shell-line-strong);
+  border-radius: 20px;
+  background: var(--shell-raised);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  animation: kaliComposerIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.kali-composer.hero {
+  width: min(680px, calc(100% - 32px));
+  margin: 0 auto;
+}
+.kali-composer.docked { z-index: 5; }
+.kali-composer:focus-within {
+  border-color: color-mix(in srgb, var(--theme-fg) 26%, transparent);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+}
+.kali-composer-field { padding: 0; }
+.kali-composer textarea {
+  display: block;
+  width: 100%;
+  min-height: 56px;
+  max-height: 200px;
+  resize: none;
+  field-sizing: content;
+  padding: 16px 18px 6px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--theme-fg);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.55;
+}
+.kali-composer textarea::placeholder { color: var(--shell-faint); }
+.kali-composer textarea:disabled { opacity: 0.6; }
+.kali-composer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 10px 10px;
+}
+.kali-composer-left { display: flex; min-width: 0; align-items: center; gap: 4px; }
+.kali-composer .kali-icon-btn { width: 32px; height: 32px; }
+.kali-send {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--theme-fg);
+  color: var(--theme-bg);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.kali-send:hover:not(:disabled) { transform: scale(1.05); }
+.kali-send:disabled { opacity: 0.3; cursor: not-allowed; }
+.kali-send.stop {
+  border: 1px solid var(--shell-line-strong);
+  background: transparent;
+  color: var(--theme-fg);
+}
+.kali-composer-note {
+  display: block;
+  padding: 0 18px 10px;
+  color: var(--shell-faint);
+  font-size: 11px;
+  text-align: center;
+}
+
+/* Model picker: a pill in the composer toolbar, menu opens upward */
+.kali-model { position: relative; min-width: 0; }
+.kali-model > button {
+  display: inline-flex;
+  max-width: 100%;
+  height: 32px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 999px;
+  color: var(--shell-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.kali-model > button:hover,
+.kali-model > button[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--theme-fg) 8%, transparent);
+  color: var(--theme-fg);
+}
+.kali-model-name { min-width: 0; max-width: 170px; }
+.kali-model-menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 5;
+  display: flex;
+  width: 300px;
+  max-width: calc(100vw - 32px);
+  max-height: min(360px, calc(100vh - 140px));
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--shell-line-strong);
+  border-radius: 12px;
+  background: var(--shell-popover);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+  animation: kaliPop 0.18s ease both;
+}
+.kali-model-search {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--shell-line-strong);
+  color: var(--shell-muted);
+}
+.kali-model-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--theme-fg);
+  font: inherit;
+  font-size: 13px;
+}
+.kali-model-search input::-webkit-search-cancel-button { display: none; }
+.kali-model-empty { padding: 14px 10px; color: var(--shell-muted); font-size: 12px; text-align: center; }
+.kali-model-list { flex: 1; min-height: 0; overflow-y: auto; padding: 4px; }
+.kali-model-menu button {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  text-align: left;
+}
+.kali-model-menu button > span { display: grid; min-width: 0; }
+.kali-model-menu strong { font-size: 13px; font-weight: 600; }
+.kali-model-menu small {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--shell-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kali-model-menu button:hover,
+.kali-model-menu button.active { background: color-mix(in srgb, var(--theme-fg) 8%, transparent); }
+.kali-model-menu button.locked { opacity: 0.5; cursor: not-allowed; }
+.kali-model-menu button.locked strong { color: var(--shell-muted); }
+.kali-model-menu button.locked svg { color: var(--shell-muted); flex: 0 0 auto; }
+/* Thin divider between the picker's groups (featured, pinned, the rest). */
+.kali-model-sep { height: 1px; margin: 4px 8px; background: var(--shell-line-strong); }
+/* The pin icon and the selected check share the row's right edge. The selector is scoped so the
+   row's generic "button > span { display: grid }" rule does not stack them. */
+.kali-model-menu .kali-model-row-icons { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; }
+.kali-model-menu .kali-model-pin-icon { color: color-mix(in srgb, var(--theme-fg) 72%, var(--theme-bg)); }
+
+/* Flyout beside a picked row. It is fixed, placed from --flyout-left and --flyout-top
+   (set by ModelFlyout). Under 600px it becomes a bottom sheet instead. Its buttons are
+   scoped under .kali-model-flyout so the generic .kali-ai button reset does not win. */
+.kali-model-flyout {
+  position: fixed;
+  left: var(--flyout-left, 0px);
+  top: var(--flyout-top, 0px);
+  z-index: 6;
+  display: flex;
+  width: 272px;
+  max-width: calc(100vw - 16px);
+  max-height: min(440px, calc(100vh - 16px));
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  padding: 14px;
+  border: 1px solid var(--shell-line-strong);
+  border-radius: 12px;
+  background: var(--shell-popover);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+  color: var(--theme-fg);
+  font-size: 12.5px;
+  animation: kaliPop 0.18s ease both;
+}
+.kali-model-flyout-title { font-size: 14px; font-weight: 600; line-height: 1.3; }
+.kali-model-flyout-section { display: flex; min-width: 0; flex-direction: column; gap: 6px; }
+/* Section labels. The muted colour is 72% of the text colour, so it stays above 4.5:1 on the panel. */
+.kali-model-flyout-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--theme-fg) 72%, var(--theme-bg));
+}
+.kali-model-flyout-value { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--theme-fg); }
+.kali-model-flyout-prices { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 12.5px; }
+.kali-model-flyout-prices dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.kali-model-flyout-source { font-size: 11px; color: color-mix(in srgb, var(--theme-fg) 72%, var(--theme-bg)); overflow-wrap: anywhere; }
+/* Segmented control: the pressed choice is filled with the text colour, so it is the highest-contrast pair. */
+.kali-model-flyout .kali-model-seg {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--shell-line-strong);
+  border-radius: 10px;
+}
+.kali-model-flyout .kali-model-seg button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 30px;
+  padding: 0 6px;
+  border-radius: 7px;
+  color: var(--theme-fg);
+  font-size: 12.5px;
+  font-weight: 550;
+  white-space: nowrap;
+}
+.kali-model-flyout .kali-model-seg button:hover:not(:disabled) { background: color-mix(in srgb, var(--theme-fg) 8%, transparent); }
+.kali-model-flyout .kali-model-seg button[aria-pressed="true"] { background: var(--theme-fg); color: var(--theme-bg); }
+.kali-model-flyout .kali-model-pin {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  align-self: flex-start;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--shell-line-strong);
+  border-radius: 9px;
+  color: var(--theme-fg);
+  font-size: 12.5px;
+  font-weight: 550;
+}
+.kali-model-flyout .kali-model-pin:hover { background: color-mix(in srgb, var(--theme-fg) 8%, transparent); }
+@media (max-width: 599px) {
+  .kali-model-flyout {
+    left: 8px;
+    right: 8px;
+    top: auto;
+    bottom: 8px;
+    width: auto;
+    max-width: none;
+    max-height: min(60vh, 520px);
+  }
+}
+
+/* ---------- attachments ---------- */
+.kali-attach-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 12px 16px 0; }
+.kali-attach-chip {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  flex: none;
+  padding: 0;
+  border: 1px solid var(--shell-hover);
+  border-radius: 10px;
+  background: var(--shell-raised);
+  overflow: hidden;
+  cursor: zoom-in;
+  line-height: 0;
+  transition: border-color 0.15s;
+}
+.kali-attach-chip:hover { border-color: var(--shell-faint); }
+.kali-attach-chip > img { display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.kali-attach-chip .kali-attach-remove {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--theme-fg) 25%, transparent);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.8);
+  color: var(--theme-fg);
+  line-height: 0;
+  cursor: pointer;
+}
+.kali-attach-chip .kali-attach-remove:hover { background: var(--theme-bg); }
+.kali-message-attachments { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; }
+.kali-message-attachments button {
+  width: 160px;
+  height: 160px;
+  flex: none;
+  padding: 0;
+  border: 1px solid var(--shell-hover);
+  border-radius: 10px;
+  background: var(--shell-raised);
+  overflow: hidden;
+  cursor: zoom-in;
+  line-height: 0;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.kali-message-attachments button:hover { border-color: var(--shell-faint); transform: scale(1.02); }
+.kali-message-attachments img { display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+
+/* Fullscreen attachment viewer */
+.kali-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 8, 10, 0.92);
+  backdrop-filter: blur(8px);
+  animation: kaliLightboxIn 0.2s ease both;
+}
+@keyframes kaliLightboxIn { from { opacity: 0; } to { opacity: 1; } }
+.kali-lightbox-img {
+  max-width: min(1200px, calc(100vw - 180px));
+  max-height: calc(100vh - 210px);
+  object-fit: contain;
+  border-radius: 10px;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.75);
+  animation: kaliLightboxImg 0.25s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+@keyframes kaliLightboxImg { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+.kali-lightbox-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 56px;
+  padding: 0 12px 0 20px;
+  background: linear-gradient(rgba(0, 0, 0, 0.75), transparent);
+}
+.kali-lightbox-count {
+  flex: none;
+  color: color-mix(in srgb, var(--theme-fg) 55%, transparent);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.kali-lightbox-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--theme-fg) 90%, transparent);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kali-lightbox-top button {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--theme-fg) 85%, transparent);
+  transition: background 0.15s;
+}
+.kali-lightbox-top button:hover {
+  background: color-mix(in srgb, var(--theme-fg) 16%, transparent);
+  color: var(--theme-fg);
+}
+.kali-lightbox-nav {
+  position: absolute;
+  top: 50%;
+  display: inline-flex;
+  width: 46px;
+  height: 46px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--theme-fg) 12%, transparent);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: var(--theme-fg);
+  transform: translateY(-50%);
+  transition: background 0.15s, transform 0.15s;
+}
+.kali-lightbox-nav:hover {
+  background: color-mix(in srgb, var(--theme-fg) 22%, transparent);
+  transform: translateY(-50%) scale(1.06);
+}
+.kali-lightbox-nav.prev { left: 20px; }
+.kali-lightbox-nav.next { right: 20px; }
+.kali-lightbox-strip {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  display: flex;
+  gap: 6px;
+  max-width: calc(100vw - 40px);
+  padding: 6px;
+  overflow-x: auto;
+  border: 1px solid color-mix(in srgb, var(--theme-fg) 8%, transparent);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.6);
+  transform: translateX(-50%);
+}
+.kali-lightbox-strip button {
+  flex: none;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  overflow: hidden;
+  opacity: 0.5;
+  transition: opacity 0.15s, border-color 0.15s;
+}
+.kali-lightbox-strip button:hover { opacity: 0.85; }
+.kali-lightbox-strip button.active { border-color: var(--theme-fg); opacity: 1; }
+.kali-lightbox-strip img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+/* ---------- errors ---------- */
+.kali-error {
+  display: flex;
+  width: min(780px, calc(100% - 32px));
+  align-self: center;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 auto 8px;
+  padding: 10px 12px;
+  border: 1px solid #633;
+  border-radius: 10px;
+  background: #311818;
+  color: #ffb6b6;
+  font-size: 12.5px;
+}
+.kali-error-text { flex: 1; min-width: 0; }
+.kali-error-close {
+  display: grid;
+  flex: none;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  opacity: 0.75;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.kali-error-close:hover { opacity: 1; }
+
+/* ---------- popout share overlay ---------- */
+.kali-share {
+  position: fixed;
+  right: 24px;
+  bottom: 118px;
+  z-index: 40;
+  display: flex;
+  width: 300px;
+  max-width: calc(100vw - 24px);
+  max-height: min(400px, calc(100vh - 40px));
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--theme-fg) 10%, transparent);
+  border-radius: 18px;
+  background: var(--shell-raised);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  animation: kaliPop 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.kali-share-head { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 10px 0 12px; border-bottom: 1px solid var(--shell-raised); flex-shrink: 0; }
+.kali-share-live { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 8px; color: var(--theme-fg); font-size: 12px; font-weight: 600; }
+.kali-share-live svg { flex-shrink: 0; color: #6ee7a8; }
+.kali-share-stop { display: inline-flex; height: 26px; align-items: center; gap: 5px; padding: 0 9px; border: 1px solid var(--shell-hover); border-radius: 7px; background: var(--shell-raised); color: var(--shell-muted); font-size: 11px; font-weight: 500; }
+.kali-share-stop:hover { border-color: #553333; background: #241818; color: #ff8f8f; }
+.kali-share-viewport { position: relative; align-self: stretch; aspect-ratio: 16 / 9; max-height: 110px; margin: 10px 12px; border: 1px solid var(--shell-hover); border-radius: 8px; background: var(--theme-bg); overflow: hidden; }
+.kali-share-preview { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+.kali-share-output { flex: 1; min-height: 84px; padding: 12px; overflow-y: auto; }
+.kali-share-empty { display: grid; min-height: 84px; place-items: center; gap: 8px; color: var(--shell-faint); text-align: center; }
+.kali-share-empty p { margin: 0; font-size: 12px; }
+.kali-share-q { margin: 0 0 4px; color: var(--shell-muted); font-size: 11px; font-weight: 600; }
+.kali-share-a { margin: 0 0 12px; color: var(--theme-fg); font-size: 12px; line-height: 1.55; white-space: pre-wrap; }
+.kali-share-composer { display: flex; align-items: center; gap: 8px; padding: 10px 12px 12px; border-top: 1px solid var(--shell-raised); flex-shrink: 0; }
+.kali-share-field { display: flex; flex: 1; min-width: 0; height: 34px; align-items: center; padding: 0 10px; border: 1px solid var(--shell-hover); border-radius: 8px; background: var(--shell-raised); }
+.kali-share-field input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--theme-fg); font: inherit; font-size: 12px; }
+.kali-share-send { display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center; border-radius: 8px; background: var(--theme-fg); color: var(--shell-surface); }
+.kali-share-send:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ---------- guest trial gate (over the chat, transcript preserved behind it) ---------- */
+.kali-guest-gate { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: rgba(8, 8, 10, 0.82); backdrop-filter: blur(5px); }
+.kali-guest-gate-card {
+  display: flex;
+  max-width: 400px;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 28px;
+  border: 1px solid var(--shell-raised);
+  border-radius: 18px;
+  background: rgba(14, 14, 16, 0.97);
+  text-align: center;
+}
+.kali-guest-gate-card h2 { margin: 0; font-size: 21px; font-weight: 600; }
+.kali-guest-gate-card p { margin: 0; color: var(--shell-muted); font-size: 13px; line-height: 1.55; }
+.kali-guest-gate-cta {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 4px;
+  padding: 0 18px;
+  border: 1px solid var(--theme-fg);
+  border-radius: 11px;
+  background: var(--theme-fg);
+  color: var(--theme-bg);
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.kali-guest-gate-cta:hover { background: var(--theme-fg); }
+.kali-guest-gate-dim { color: var(--shell-muted); font-size: 12px; }
+
+/* ---------- reasoning and tool traces (VS Code chat style) ---------- */
+.kali-trace { margin: 2px 0 6px; color: var(--shell-muted); font-size: 12px; user-select: none; }
+.kali-trace-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 0 -4px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.kali-trace-label:hover { background: color-mix(in srgb, var(--theme-fg) 5%, transparent); }
+.kali-trace-icon { display: inline-flex; width: 14px; height: 14px; align-items: center; justify-content: center; flex: none; color: var(--shell-muted); }
+.kali-trace-title { color: var(--shell-muted); }
+.kali-trace-title em { font-style: normal; opacity: 0.7; }
+.kali-trace-chevron { color: var(--shell-muted); opacity: 0; transform: rotate(-90deg); transition: opacity 0.1s ease, transform 0.18s cubic-bezier(0.2, 0, 0, 1); }
+.kali-trace-label:hover .kali-trace-chevron,
+.kali-trace.open .kali-trace-chevron { opacity: 1; }
+.kali-trace.open .kali-trace-chevron { transform: rotate(0deg); }
+.kali-trace-body { position: relative; margin: 2px 0 4px; padding: 2px 0; }
+.kali-trace-row { position: relative; padding: 5px 12px 5px 26px; font-size: 12px; }
+/* Connector thread between nodes, drawn as a real element (pseudo-elements get
+ * stripped in the build). The dot icon sits at left:6px top:9px (11px tall,
+ * occupying ~8-21px); the line breaks where the glyph sits so it never
+ * strikes through. */
+.kali-trace-line { position: absolute; top: 0; bottom: 0; left: 11px; width: 1px; background: linear-gradient(to bottom, var(--shell-line-strong) 0 7px, transparent 7px 22px, var(--shell-line-strong) 22px 100%); }
+.kali-trace-dot { position: absolute; top: 9px; left: 6px; display: inline-flex; width: 11px; height: 11px; align-items: center; justify-content: center; background: transparent; color: var(--shell-muted); }
+.kali-trace-detail, .kali-trace-detail * { color: var(--shell-muted); line-height: 1.5; }
+.kali-trace-detail p { margin: 0; }
+.kali-trace-detail pre { margin: 2px 0 0; padding: 6px 8px; border: 1px solid var(--shell-hover); border-radius: 8px; background: var(--shell-raised); color: var(--shell-muted); font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
+/* Shimmer sweep on running titles (background-clip text, like VS Code) */
+.kali-trace .shimmer { background: linear-gradient(90deg, var(--shell-muted) 0%, var(--shell-muted) 30%, var(--theme-fg) 50%, var(--shell-muted) 70%, var(--shell-muted) 100%); background-size: 400% 100%; background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; animation: kaliTraceShimmer 2s linear infinite; }
+/* Spinner + pulse dot for running states */
+.kali-spinner { display: inline-block; width: 11px; height: 11px; border: 1.5px solid var(--shell-faint); border-top-color: var(--theme-fg); border-radius: 50%; animation: kaliTraceSpin 1.5s steps(30) infinite; }
+.kali-pulse-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--shell-muted); animation: kaliTracePulse 1.2s ease-in-out infinite; }
+/* Live reasoning text inside the thinking block: italic and dim */
+.kali-think-text .kali-trace-detail p { color: var(--shell-muted); font-style: italic; line-height: 1.5; white-space: pre-wrap; }
+/* Thinking markdown is uniformly subdued */
+.kali-think-md.kali-markdown { color: var(--shell-muted); font-size: 12px; font-style: italic; line-height: 1.55; }
+.kali-think-md.kali-markdown :where(p, ul, ol, li, strong, em, span, div, a, h1, h2, h3, h4, td, th, blockquote, code) { color: var(--shell-muted) !important; }
+.kali-think-md.kali-markdown p { margin: 0 0 6px; }
+.kali-think-md.kali-markdown code { background: var(--shell-raised); }
+.kali-think-md.kali-markdown a { text-decoration: underline; }
+.kali-think-live { animation: kaliTracePulse 1.6s ease-in-out infinite; }
+
+/* ---------- upgrade panel (welcome state, under the composer) ---------- */
+.kali-upgrade {
+  display: grid;
+  width: min(780px, calc(100% - 32px));
+  gap: 12px;
+  margin: 0 auto;
+  padding: 20px 22px;
+  border: 1px solid var(--shell-line);
+  border-radius: 14px;
+  background: var(--shell-surface);
+  color: var(--theme-fg);
+  text-align: left;
+}
+.kali-upgrade h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.kali-upgrade > p {
+  margin: 0;
+  color: var(--shell-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.kali-upgrade-plans {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0 20px;
+  list-style: none;
+}
+.kali-upgrade-plans li {
+  display: grid;
+  gap: 4px;
+  padding: 12px 0;
+  border-top: 1px solid var(--shell-line);
+}
+.kali-upgrade-plans strong { font-size: 14px; font-weight: 600; }
+.kali-upgrade-figures {
+  color: var(--theme-fg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.kali-upgrade-examples { color: var(--shell-muted); font-size: 12px; line-height: 1.5; }
+.kali-upgrade > .kali-upgrade-note { color: var(--shell-faint); font-size: 12px; }
+.kali-ai .kali-upgrade-cta {
+  justify-self: start;
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  padding: 0 16px;
+  border: 1px solid var(--theme-fg);
+  border-radius: 11px;
+  background: var(--theme-fg);
+  color: var(--theme-bg);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+/* ---------- bring-your-own API key (sidebar, above the account footer) ---------- */
+.kali-ai .kali-key-toggle {
+  display: flex;
+  width: 100%;
+  height: 32px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border-radius: 10px;
+  color: var(--shell-muted);
+  font-size: 12.5px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.kali-ai .kali-key-toggle:hover { background: var(--shell-raised); color: var(--theme-fg); }
+.kali-key-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--shell-hover);
+  border-radius: 10px;
+}
+.kali-key-input {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--shell-line-strong);
+  border-radius: 9px;
+  background: var(--shell-surface);
+  color: var(--theme-fg);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  outline: none;
+}
+.kali-key-input:focus { border-color: var(--theme-fg); }
+.kali-key-input[aria-invalid="true"] { border-color: #633; }
+.kali-key-error { margin: 0; color: #ffb6b6; font-size: 12px; }
+.kali-key-note { margin: 0; color: var(--shell-faint); font-size: 11px; line-height: 1.5; }
+.kali-key-actions { display: flex; gap: 6px; }
+.kali-ai .kali-key-save,
+.kali-ai .kali-key-cancel,
+.kali-ai .kali-key-clear {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+.kali-ai .kali-key-save {
+  border: 1px solid var(--theme-fg);
+  background: var(--theme-fg);
+  color: var(--theme-bg);
+  font-weight: 600;
+}
+.kali-ai .kali-key-save:disabled { opacity: 0.45; }
+.kali-ai .kali-key-cancel,
+.kali-ai .kali-key-clear {
+  border: 1px solid var(--shell-line-strong);
+  color: var(--theme-fg);
+}
+.kali-ai .kali-key-cancel:hover,
+.kali-ai .kali-key-clear:hover { background: var(--shell-raised); }
+.kali-key-status {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px 0 10px;
+  border: 1px solid var(--shell-hover);
+  border-radius: 10px;
+  color: var(--shell-muted);
+  font-size: 12px;
+}
+.kali-key-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: #6ee7a8;
+}
+.kali-key-mask {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--theme-fg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- keyframes ---------- */
+@keyframes kaliHeroIn { from { opacity: 0; transform: translateY(16px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes kaliComposerIn { from { opacity: 0; transform: translateY(22px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes kaliMsgIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes kaliPop { from { opacity: 0; transform: translateY(8px) scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes kaliFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes kaliBlink { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+@keyframes kaliTraceShimmer { 0% { background-position: 120% 0; } 100% { background-position: -120% 0; } }
+@keyframes kaliTraceSpin { 100% { transform: rotate(360deg); } }
+@keyframes kaliTracePulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .kali-empty,
+  .kali-empty-mark,
+  .kali-message,
+  .kali-composer,
+  .kali-model-menu,
+  .kali-model-flyout,
+  .kali-share,
+  .kali-lightbox,
+  .kali-lightbox-img { animation: none; }
+  .kali-trace .shimmer { animation: none; background: none; -webkit-text-fill-color: currentColor; color: var(--shell-muted); }
+  .kali-spinner,
+  .kali-pulse-dot { animation: none; }
+}
+
+/* ---------- narrow screens: the sidebar becomes a drawer ---------- */
+.kali-ai-scrim { display: none; }
+@media (min-width: 901px) {
+  .kali-ai:not(.sidebar-open) .kali-ai-sidebar { display: none; }
+}
+@media (max-width: 900px) {
+  .kali-ai-sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 30;
+    width: min(288px, 84vw);
+    flex-basis: auto;
+    visibility: hidden;
+    transform: translateX(-102%);
+    background: color-mix(in srgb, var(--theme-bg) 94%, transparent);
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.45);
+    transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), visibility 0.25s;
+  }
+  .kali-ai.sidebar-open .kali-ai-sidebar { visibility: visible; transform: none; }
+  .kali-ai.sidebar-open .kali-ai-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 25;
+    display: block;
+    background: rgba(0, 0, 0, 0.45);
+  }
+  .kali-ai-main > header { padding: 0 10px; }
+  .kali-chat-scroll { padding-inline: 16px; }
+  .kali-composer { width: calc(100% - 20px); }
+  .kali-composer.hero { width: calc(100% - 32px); }
+  .kali-message.user > p { max-width: 88%; }
+}
+
+/* Chat settings sits in the footer, above the token count and the account name. The footer's
+   top border sits above the group, with no divider between the settings and the rest. */
+.kali-ai-sidebar footer { flex-wrap: wrap; }
+.kali-ai-sidebar footer .kali-cs-footer-toggle { flex: 0 0 100%; width: 100%; margin: 0; }
+
+/* Flyout, VS Code layout: the pin sits on the name's line, and Max context is one row. */
+.kali-model-flyout-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.kali-model-flyout .kali-model-pin { display: inline-grid; flex: 0 0 auto; width: 26px; height: 26px; place-items: center; border-radius: 6px; color: var(--shell-muted); }
+.kali-model-flyout .kali-model-pin:hover { background: var(--shell-hover); color: var(--theme-fg); }
+.kali-model-flyout-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.kali-model-flyout-row .kali-model-flyout-value { font-variant-numeric: tabular-nums; color: var(--theme-fg); }
+
+/* Thinking choices: centred both ways, and the selected choice keeps its colours on hover. */
+.kali-model-flyout .kali-model-seg button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  line-height: 1;
+}
+.kali-model-flyout .kali-model-seg button > span { display: block; line-height: 1; }
+.kali-model-flyout .kali-model-seg button,
+.kali-model-flyout .kali-model-seg button:hover:not(:disabled),
+.kali-model-flyout .kali-model-seg button:focus-visible { color: var(--theme-fg); }
+.kali-model-flyout .kali-model-seg button[aria-pressed="true"],
+.kali-model-flyout .kali-model-seg button[aria-pressed="true"]:hover:not(:disabled),
+.kali-model-flyout .kali-model-seg button[aria-pressed="true"]:focus-visible {
+  background: var(--theme-fg);
+  color: var(--theme-bg);
+}
+
+/* Pin: a bare icon. No box, border, fill or press effect. */
+.kali-model-flyout .kali-model-pin,
+.kali-model-flyout .kali-model-pin:hover,
+.kali-model-flyout .kali-model-pin:focus-visible,
+.kali-model-flyout .kali-model-pin:active {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  transform: none;
+  color: var(--shell-muted);
+}
+.kali-model-flyout .kali-model-pin:hover { color: var(--theme-fg); }
+.kali-model-flyout .kali-model-pin svg { display: block; }
+
+/* Pin orientation: faces left when unpinned, then turns 45 degrees clockwise once pinned. */
+.kali-model-flyout .kali-model-pin svg { transform: rotate(90deg); transition: transform 200ms cubic-bezier(0.2, 0, 0, 1); }
+.kali-model-flyout .kali-model-pin[aria-pressed="true"] svg { transform: rotate(45deg); }
+.kali-model-menu .kali-model-pin-icon { transform: rotate(45deg); }
+
+/* The thinking level beside the picker's name is a little dimmer than the name. */
+.kali-model-level { min-width: 0; white-space: nowrap; color: color-mix(in srgb, var(--shell-muted) 70%, var(--theme-bg)); }
+/* The attach icon matches the model name's colour, and brightens on hover like the rest of the composer tools. */
+.kali-composer .kali-icon-btn { color: var(--shell-muted); }
+.kali-composer .kali-icon-btn:hover { color: var(--theme-fg); }
+
+/* Thinking choices: centre the capitals in the button. Trimming the text box to the cap height
+   removes the font's extra ascender space, which otherwise sits the label high. */
+.kali-model-flyout .kali-model-seg button > span {
+  line-height: normal;
+  text-box: trim-both cap alphabetic;
+}
+
+/* ---------- terminal card (chat-common.tsx TerminalCard): one card, the command above, its output below ---------- */
+.kali-term { margin: 6px 0; font-size: 13px; }
+.kali-term-head {
+  display: flex; align-items: center; gap: 6px; max-width: 100%; padding: 2px 0;
+  background: none; border: 0; color: var(--shell-muted); font: inherit; text-align: left; cursor: pointer;
+}
+.kali-term-head > .codicon { font-size: 13px; color: var(--shell-muted); }
+.kali-term-verb { flex: 0 0 auto; color: var(--theme-fg); font-weight: 500; }
+.kali-term-command {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 1px 6px; border-radius: 6px; background: var(--shell-raised); color: var(--theme-fg);
+  font-family: var(--font-mono); font-size: 12px;
+}
+.kali-term-exit { color: #e5484d; font-size: 12px; white-space: nowrap; }
+.kali-term-chevron { transition: transform .15s ease; }
+.kali-term-chevron.open { transform: rotate(180deg); }
+.kali-term-card {
+  overflow: hidden; border: 1px solid var(--shell-line-strong); border-radius: 8px;
+  background: var(--shell-raised);
+}
+.kali-term-input {
+  display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+  border-bottom: 1px solid var(--shell-line); font-family: var(--font-mono); font-size: 12px; color: var(--theme-fg);
+}
+.kali-term-input code { min-width: 0; overflow-x: auto; white-space: pre; }
+.kali-term-dot { flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%; background: var(--ui-accent, #4fc1ff); }
+.kali-term-output {
+  margin: 0; padding: 8px 10px; max-height: 260px; overflow: auto;
+  font-family: var(--font-mono); font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+  color: var(--shell-muted);
+}
+.kali-term.failed .kali-term-card { border-color: rgba(229, 72, 77, .5); }
+
+/* ---------- workspace pane (workspace/WorkspacePane.tsx): files and a shell beside the chat ---------- */
+.kali-ws {
+  display: flex; flex: 0 0 min(46%, 640px); min-width: 0; min-height: 0; flex-direction: column;
+  border-left: 1px solid var(--shell-line); background: var(--shell-raised); color: var(--theme-fg);
+  font-size: 13px;
+}
+.kali-ws-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 0 6px 0 8px; height: 36px; flex: none; border-bottom: 1px solid var(--shell-line);
+}
+.kali-ws-tabs { display: flex; gap: 2px; min-width: 0; }
+.kali-ws-tabs button {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px;
+  border: 0; border-radius: 6px; background: transparent; color: var(--shell-muted); font: inherit; cursor: pointer;
+}
+.kali-ws-tabs button.active { background: var(--shell-hover); color: var(--theme-fg); }
+.kali-ws-tabs .codicon { font-size: 14px; }
+.kali-ws-close { width: 28px; height: 28px; }
+.kali-ws-body { display: flex; min-height: 0; flex: 1; flex-direction: column; }
+.kali-ws-bar {
+  display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 4px 6px;
+  border-bottom: 1px solid var(--shell-line); flex: none;
+}
+/* Icon buttons are flex boxes, so the glyph is centred on both axes instead of sitting on the text baseline. */
+.kali-ws-icon {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 26px; height: 26px; padding: 0; margin: 0; border: 0; border-radius: 6px; background: transparent; color: var(--shell-muted); cursor: pointer;
+}
+.kali-ws-icon:hover:not(:disabled) { background: var(--shell-hover); color: var(--theme-fg); }
+.kali-ws-icon:disabled { opacity: .4; cursor: default; }
+.kali-ws-icon .codicon { display: block; font-size: 14px; line-height: 1; }
+.kali-ws-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+/* The folder path. Clicking it opens a field with the full path. */
+.kali-ws-crumbs {
+  display: flex; min-width: 0; flex: 1; align-items: center; height: 26px; padding: 0 2px; overflow: hidden; white-space: nowrap; border-radius: 6px; cursor: text;
+}
+.kali-ws-crumbs:hover { background: var(--shell-hover); }
+.kali-ws-crumbs button {
+  display: inline-flex; align-items: center; height: 22px; padding: 0 4px; border: 0; border-radius: 4px; background: none; color: var(--theme-fg); font: inherit; line-height: 1; cursor: pointer;
+}
+.kali-ws-crumbs button:hover { background: var(--shell-raised); }
+.kali-ws-pathinput {
+  flex: 1; min-width: 0; height: 26px; padding: 0 6px; border: 1px solid var(--shell-line); border-radius: 6px; background: var(--shell-raised); color: var(--theme-fg); font: inherit; font-size: 12.5px; font-family: var(--font-mono, ui-monospace, Menlo, monospace);
+}
+.kali-ws-pathinput:focus { outline: none; border-color: var(--shell-muted); }
+.kali-ws-sep { color: var(--shell-muted); }
+.kali-ws-files, .kali-ws-viewer, .kali-ws-shell { display: flex; min-height: 0; flex: 1; flex-direction: column; }
+.kali-ws-list { margin: 0; padding: 4px; overflow-y: auto; list-style: none; }
+.kali-ws-list button {
+  display: flex; align-items: center; gap: 8px; width: 100%; height: 26px; padding: 0 8px;
+  border: 0; border-radius: 4px; background: transparent; color: var(--theme-fg); font: inherit; text-align: left; cursor: pointer;
+}
+.kali-ws-list button:hover { background: var(--shell-hover); }
+.kali-ws-list .codicon { font-size: 14px; color: var(--shell-muted); }
+.kali-ws-list .kali-ws-entry { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kali-ws-go { margin-left: auto; }
+.kali-ws-note { margin: 12px; color: var(--shell-muted); }
+.kali-ws-error { color: #e5484d; }
+.kali-ws-code {
+  margin: 0; padding: 6px 0; overflow: auto; flex: 1; min-height: 0;
+  font-family: var(--font-mono); font-size: 12px; line-height: 1.55;
+}
+.kali-ws-line { display: flex; padding: 0 10px 0 0; white-space: pre; }
+.kali-ws-num { flex: 0 0 44px; padding-right: 12px; text-align: right; color: var(--shell-muted); user-select: none; }
+.kali-ws-text { white-space: pre; }
+.kali-ws-term { flex: 1; min-height: 0; padding: 6px; background: #111111; }
+.kali-ws-term .xterm { height: 100%; }
+@media (max-width: 800px) {
+  .kali-ws { position: fixed; inset: 0; z-index: 60; flex: none; width: auto; border-left: 0; }
+}
+
+/* ---------- terminal card body (chat-common.tsx TerminalCardBody), as VS Code draws it ---------- */
+.kali-term-card { position: relative; }
+.kali-term-open { position: absolute; top: 4px; right: 4px; z-index: 1; width: 24px; height: 24px; }
+.kali-term-open .codicon { font-size: 14px; }
+.kali-term-input { font-style: italic; }
+.kali-term-prompt {
+  display: flex; min-width: 0; align-items: center; gap: 0;
+  padding: 6px 10px; border-bottom: 1px solid var(--shell-line);
+  font-family: var(--font-mono); font-size: 12px; color: var(--theme-fg); white-space: pre; overflow-x: auto;
+}
+.kali-term-glyph { color: #c586c0; margin-right: 6px; }
+.kali-term-card .kali-term-output { padding-top: 6px; }
+
+/* ---------- terminal card body (chat-common.tsx TerminalCardBody), as VS Code draws it ---------- */
+.kali-term-card { position: relative; }
+.kali-term-open { position: absolute; top: 4px; right: 4px; z-index: 1; width: 24px; height: 24px; }
+.kali-term-open .codicon { font-size: 14px; }
+.kali-term-input { font-style: italic; }
+.kali-term-prompt {
+  display: flex; min-width: 0; align-items: center;
+  padding: 6px 10px; border-bottom: 1px solid var(--shell-line);
+  font-family: var(--font-mono); font-size: 12px; color: var(--theme-fg); white-space: pre; overflow-x: auto;
+}
+.kali-term-glyph { color: #c586c0; margin-right: 6px; }
+
+/* ---------- shells: a tab per shell, a close button on each, a + to open another, and a right-click menu ---------- */
+.kali-ws-shelltabs {
+  display: flex; align-items: center; gap: 2px; min-height: 32px; padding: 3px 4px;
+  border-bottom: 1px solid var(--shell-line); overflow-x: auto; flex: none;
+}
+.kali-ws-shelltab {
+  display: flex; align-items: center; gap: 6px; flex: 0 0 auto; height: 26px; padding: 0 2px 0 8px;
+  border-radius: 6px; color: var(--shell-muted); cursor: pointer; user-select: none; white-space: nowrap;
+}
+.kali-ws-shelltab:hover { background: var(--shell-hover); color: var(--theme-fg); }
+.kali-ws-shelltab.active { background: var(--shell-hover); color: var(--theme-fg); }
+.kali-ws-shelltab.exited .kali-ws-shellname { text-decoration: line-through; opacity: .7; }
+.kali-ws-shelltab > .codicon { font-size: 13px; }
+.kali-ws-shellname { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+.kali-ws-rename {
+  width: 120px; height: 20px; padding: 0 4px; border: 1px solid var(--shell-line-strong); border-radius: 4px;
+  background: var(--theme-bg); color: var(--theme-fg); font: inherit; font-size: 12px; outline: 0;
+}
+.kali-ws-shellclose { width: 20px; height: 20px; opacity: .6; }
+.kali-ws-shellclose:hover { opacity: 1; }
+.kali-ws-shellclose .codicon { font-size: 12px; }
+.kali-ws-newshell { flex: none; }
+.kali-ws-menu {
+  position: fixed; z-index: 70; min-width: 150px; padding: 4px; border-radius: 8px;
+  border: 1px solid var(--shell-line-strong); background: var(--shell-raised); box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
+}
+.kali-ws-menu button {
+  display: block; width: 100%; padding: 6px 10px; border: 0; border-radius: 5px; background: transparent;
+  color: var(--theme-fg); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+}
+.kali-ws-menu button:hover { background: var(--shell-hover); }
+.kali-ws-newshell { align-self: center; display: inline-flex; align-items: center; justify-content: center; margin: 0; padding: 0; height: 26px; width: 26px; }
+.kali-ws-shelltabs { align-items: center; }
+.kali-plan-badge{display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;gap:5px;width:auto!important;height:24px;padding:0 9px;border-radius:999px;font-size:11px;font-weight:650;letter-spacing:.02em;text-decoration:none;white-space:nowrap;user-select:none;-webkit-user-select:none}
+.kali-plan-badge.free{border:1px solid var(--ui-border,#3a3a3a);color:var(--ui-text-muted,#cfcfcf);background:var(--ui-glass,#1a1a1a)}
+.kali-plan-badge.free:hover{border-color:var(--ui-border-strong,#666);color:var(--ui-text,#fff)}

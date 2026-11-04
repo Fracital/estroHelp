@@ -1,0 +1,11 @@
+---
+import Shell from '../layouts/Shell.astro';
+import DocsPage from '../components/DocsPage';
+import { LegalFooter } from '../components/AuthGate';
+---
+<Shell title="API reference" active="docs" scroll>
+    <main>
+      <DocsPage client:load />
+    </main>
+    <LegalFooter className="kali-page-foot" />
+</Shell>

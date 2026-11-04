@@ -221,6 +221,16 @@ func (w *zaiBrowserWorker) isAlive() bool {
 }
 
 func (w *zaiBrowserWorker) ensure() error {
+	// A worker that started as a guest because no account was free yet moves
+	// onto one as soon as the pool has it; the respawn costs a few seconds once.
+	if w.isAlive() && w.account == nil {
+		if pool := zaiGetAccountPool(); pool != nil && pool.hasAccounts() {
+			if a := pool.lease(context.Background(), w.id); a != nil {
+				w.account = a
+				w.kill()
+			}
+		}
+	}
 	if w.isAlive() {
 		return nil
 	}

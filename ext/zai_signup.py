@@ -572,7 +572,7 @@ def solve_captcha(page, attempts, deadline):
             with open(os.path.join(dump, "attempts.jsonl"), "a") as f:
                 f.write(json.dumps({"run": RUN_ID, "attempt": attempt, "gap_x": gap_x, "passed": bool(ok), "verify": VERIFY["last"], **diag}) + "\n")
         if ok:
-            _log("captcha_passed", attempt=attempt, text=json.dumps(txt), verify=json.dumps(VERIFY["last"])[:120])
+            _log("captcha_passed", attempt=attempt, code=(VERIFY["last"] or {}).get("VerifyCode"))
             return True
         _log("captcha_retry", attempt=attempt, text=json.dumps(txt))
         page.wait_for_timeout(1500)

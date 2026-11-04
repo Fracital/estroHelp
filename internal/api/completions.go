@@ -96,6 +96,7 @@ func (c *Chat) completions(w http.ResponseWriter, r *http.Request) {
 	for _, m := range req.Messages {
 		promptChars += len(m)
 	}
+	sanitizeChat(passthrough, p, req.Stream)
 	applied, _ := json.Marshal(p.Apply(req.Messages))
 	passthrough["messages"] = applied
 	passthrough["model"], _ = json.Marshal(p.BaseModel)
@@ -148,7 +149,7 @@ func (c *Chat) listModelsOpenAI(w http.ResponseWriter, r *http.Request) {
 	for _, p := range persona.All() {
 		data = append(data, map[string]any{
 			"id": p.ID, "object": "model", "owned_by": "estro", "name": p.Name, "description": p.Description, "short": p.Short,
-			"requires_plan": !billing.IsFreeModel(p.ID),
+			"requires_plan":  !billing.IsFreeModel(p.ID),
 			"context_window": p.ContextWindow, "max_output": p.MaxOutput, "tool_use": p.ToolUse, "vision": p.Vision,
 			"reasoning": p.Reasoning, "levels": p.Levels, "thinking_off": p.ThinkingOff,
 		})

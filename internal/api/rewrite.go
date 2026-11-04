@@ -19,6 +19,8 @@ type modelRewriter struct {
 	usage tokenUsage
 	// bytesOut counts the body for the fallback estimate when no usage is reported.
 	bytesOut int
+	// onLine sees every complete line (and the final unterminated remainder) before rewriting.
+	onLine func([]byte)
 }
 
 func newModelRewriter(w http.ResponseWriter, publicModel string) *modelRewriter {
@@ -35,6 +37,9 @@ func (m *modelRewriter) Write(p []byte) (int, error) {
 		line := make([]byte, i+1)
 		copy(line, m.buf.Next(i+1))
 		m.usage.observe(line)
+		if m.onLine != nil {
+			m.onLine(line)
+		}
 		m.bytesOut += len(line)
 		if _, err := m.ResponseWriter.Write(modelField.ReplaceAll(line, m.replacement)); err != nil {
 			return 0, err
@@ -53,6 +58,9 @@ func (m *modelRewriter) Flush() {
 func (m *modelRewriter) Close() {
 	if m.buf.Len() > 0 {
 		m.usage.observe(m.buf.Bytes())
+		if m.onLine != nil {
+			m.onLine(m.buf.Bytes())
+		}
 		m.bytesOut += m.buf.Len()
 		m.ResponseWriter.Write(modelField.ReplaceAll(m.buf.Bytes(), m.replacement))
 		m.buf.Reset()

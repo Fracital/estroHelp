@@ -21,12 +21,12 @@ type Primer struct {
 }
 
 type Persona struct {
-	ID          string  `json:"id"`
-	Name        string  `json:"name"`
-	BaseModel   string  `json:"base_model"`
-	Provider    string  `json:"provider"`
-	Description string  `json:"description"`
-	Short       string  `json:"short"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	BaseModel   string `json:"base_model"`
+	Provider    string `json:"provider"`
+	Description string `json:"description"`
+	Short       string `json:"short"`
 	// Capabilities and limits, served to clients and the integration snippets.
 	ContextWindow int      `json:"context_window"`
 	MaxOutput     int      `json:"max_output"`

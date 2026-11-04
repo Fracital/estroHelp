@@ -90,6 +90,7 @@ func (c *Chat) messages(w http.ResponseWriter, r *http.Request) {
 	for _, m := range req.Messages {
 		promptChars += len(m)
 	}
+	sanitizeMessages(passthrough)
 	system, msgs := p.ApplyAnthropic(req.System, req.Messages)
 	passthrough["system"] = system
 	passthrough["messages"], _ = json.Marshal(msgs)
@@ -133,7 +134,21 @@ func (c *Chat) responses(w http.ResponseWriter, r *http.Request) {
 	if _, ok := c.admit(w, r, "openai", p.ID, func(s int, m, k string) { openAIError(w, s, m, k) }); !ok {
 		return
 	}
-	instructions, input := p.ApplyResponses(req.Instructions, req.Input)
+	// A request that continues a previous response gets that response's items
+	// in front of its own input; the upstream keeps no history of its own.
+	clientInput := req.Input
+	if raw, ok := passthrough["previous_response_id"]; ok {
+		var prev string
+		if json.Unmarshal(raw, &prev) == nil && prev != "" {
+			if chained := chainInput(u.ID, prev, req.Input); chained != nil {
+				clientInput, _ = json.Marshal(chained)
+			} else {
+				slog.Warn("responses: previous_response_id not kept; sending input without history", "user", u.Username, "kept", storedResponseCount())
+			}
+		}
+	}
+	sanitizeResponses(passthrough, p)
+	instructions, input := p.ApplyResponses(req.Instructions, clientInput)
 	passthrough["instructions"], _ = json.Marshal(instructions)
 	passthrough["input"] = input
 	passthrough["model"], _ = json.Marshal(p.BaseModel)
@@ -141,8 +156,13 @@ func (c *Chat) responses(w http.ResponseWriter, r *http.Request) {
 
 	c.recordUsage(r.Context(), u, p.ID, len(req.Input))
 	slog.Info("chat", "dialect", "responses", "user", u.Username, "model", p.ID, "upstream", p.BaseModel, "stream", req.Stream)
+	rec := &responseRecorder{}
 	rw := newModelRewriter(w, p.ID)
+	rw.onLine = rec.observe
 	prov.Serve(rw, r, provider.Responses, body)
 	rw.Close()
+	if id, output, ok := rec.result(); ok {
+		rememberResponse(u.ID, id, inputItems(clientInput), output)
+	}
 	c.meter(r.Context(), u, p.ID, rw.usage, len(req.Input), rw.bytesOut)
 }

@@ -146,7 +146,12 @@ func (c *Chat) listModels(w http.ResponseWriter, r *http.Request) {
 func (c *Chat) listModelsOpenAI(w http.ResponseWriter, r *http.Request) {
 	data := []map[string]any{}
 	for _, p := range persona.All() {
-		data = append(data, map[string]any{"id": p.ID, "object": "model", "owned_by": "estro", "name": p.Name, "description": p.Description, "short": p.Short, "requires_plan": !billing.IsFreeModel(p.ID)})
+		data = append(data, map[string]any{
+			"id": p.ID, "object": "model", "owned_by": "estro", "name": p.Name, "description": p.Description, "short": p.Short,
+			"requires_plan": !billing.IsFreeModel(p.ID),
+			"context_window": p.ContextWindow, "max_output": p.MaxOutput, "tool_use": p.ToolUse, "vision": p.Vision,
+			"reasoning": p.Reasoning, "levels": p.Levels, "thinking_off": p.ThinkingOff,
+		})
 	}
 	auth.WriteJSON(w, 200, map[string]any{"object": "list", "data": data})
 }

@@ -27,8 +27,16 @@ type Persona struct {
 	Provider    string  `json:"provider"`
 	Description string  `json:"description"`
 	Short       string  `json:"short"`
-	System      string  `json:"-"`
-	Primer      *Primer `json:"-"`
+	// Capabilities and limits, served to clients and the integration snippets.
+	ContextWindow int      `json:"context_window"`
+	MaxOutput     int      `json:"max_output"`
+	ToolUse       bool     `json:"tool_use"`
+	Vision        bool     `json:"vision"`
+	Reasoning     bool     `json:"reasoning"`
+	Levels        []string `json:"levels"`
+	ThinkingOff   bool     `json:"thinking_off"`
+	System        string   `json:"-"`
+	Primer        *Primer  `json:"-"`
 }
 
 // Order is the public display order.

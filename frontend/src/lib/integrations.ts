@@ -6,32 +6,61 @@ export const BASE_URL = `${BASE_HOST}/v1`;
 export const KEY = 'estro_YOUR_TOKEN';
 export const KEY_ENV = 'ESTRO_TOKEN';
 
-export interface ModelRow { id: string; name: string }
+/** One model as the catalogue serves it (see /api/models); the same fields the IDE snippets need. */
+export interface ModelRow {
+  id: string;
+  name: string;
+  short?: string;
+  context_window: number | null;
+  max_output: number | null;
+  tool_use: boolean;
+  vision: boolean;
+  reasoning: boolean;
+  levels: string[];
+}
+/** Static defaults, identical to the personas the server ships; the docs refresh them from /api/models. */
 export const MODELS: ModelRow[] = [
-  { id: 'kali-gamma', name: 'Kali Gamma' },
-  { id: 'kali-beta', name: 'Kali Beta' },
-  { id: 'kali-epsilon', name: 'Kali Epsilon' },
+  { id: 'kali-gamma', name: 'Kali Gamma', short: 'Deep reasoning for complex work', context_window: 1048576, max_output: 131072, tool_use: true, vision: true, reasoning: true, levels: ['low', 'high', 'max'] },
+  { id: 'kali-beta', name: 'Kali Beta', short: 'Balanced, long context', context_window: 262144, max_output: 262144, tool_use: true, vision: true, reasoning: true, levels: ['low', 'high', 'max'] },
+  { id: 'kali-epsilon', name: 'Kali Epsilon', short: 'Fast answers', context_window: 1048576, max_output: 131072, tool_use: true, vision: true, reasoning: true, levels: [] },
 ];
-const first = MODELS[0].id;
-const idList = MODELS.map((m) => m.id).join('\n');
 
 export interface IntegrationConfig { title: string; language: string; code: string }
 export interface Integration { id: string; label: string; icon: string; description: string; configs: IntegrationConfig[] }
 
+export function buildIntegrations(rows: ModelRow[] = MODELS): Integration[] {
+const MODELS = rows;
+const first = MODELS[0]?.id ?? 'kali-gamma';
+const idList = MODELS.map((m) => m.id).join('\n');
+
+// Shapes follow abulxt's ide-models.ts: every id, name and limit comes from the rows.
 const vscodeChatLanguageModels = JSON.stringify([{
   name: 'Estro', vendor: 'customendpoint', apiType: 'responses', apiKey: KEY,
-  models: MODELS.map((m) => ({ id: m.id, name: m.name, url: `${BASE_URL}/responses`, toolCalling: true, vision: true, reasoningEffortFormat: 'responses', supportsReasoningEffort: ['low', 'medium', 'high'] })),
+  models: MODELS.map((m) => ({
+    id: m.id, name: m.name, url: `${BASE_URL}/responses`, toolCalling: m.tool_use, vision: m.vision,
+    ...(m.context_window ? { maxInputTokens: m.context_window } : {}),
+    ...(m.max_output ? { maxOutputTokens: m.max_output } : {}),
+    ...(m.levels.length ? { reasoningEffortFormat: 'responses', supportsReasoningEffort: m.levels } : {}),
+  })),
 }], null, 2);
 
 const opencodeProvider = JSON.stringify({
   $schema: 'https://opencode.ai/config.json',
-  provider: { estro: { npm: '@ai-sdk/openai', name: 'Estro', options: { baseURL: BASE_URL, apiKey: KEY }, models: Object.fromEntries(MODELS.map((m) => [m.id, { name: m.name, tool_call: true, reasoning: true, attachment: true }])) } },
-  model: `kali/${first}`,
+  provider: { estro: { npm: '@ai-sdk/openai', name: 'Estro', options: { baseURL: BASE_URL, apiKey: KEY }, models: Object.fromEntries(MODELS.map((m) => [m.id, {
+    name: m.name, tool_call: m.tool_use, reasoning: m.reasoning || m.levels.length > 0, attachment: m.vision,
+    ...(m.context_window && m.max_output ? { limit: { context: m.context_window, output: m.max_output } } : {}),
+  }])) } },
+  model: `estro/${first}`,
 }, null, 2);
 
 const cursorByokConfig = JSON.stringify({
   baseURL: 'https://api2.cursor.sh',
-  modelAdapters: MODELS.map((m) => ({ displayName: m.name, type: 'openai', baseURL: BASE_URL, apiKey: KEY, modelID: m.id, supportedThinkingLevels: ['low', 'medium', 'high'] })),
+  modelAdapters: MODELS.map((m) => ({
+    displayName: m.name, type: 'openai', baseURL: BASE_URL, apiKey: KEY, modelID: m.id,
+    ...(m.context_window ? { contextWindow: String(m.context_window) } : {}),
+    ...(m.max_output ? { maxOutputTokens: String(m.max_output) } : {}),
+    ...(m.levels.length ? { supportedThinkingLevels: m.levels } : {}),
+  })),
 }, null, 2);
 
 const continueYaml = `name: Estro\nversion: 0.0.1\nschema: v1\nmodels:\n` + MODELS.map((m) => `  - name: "${m.name}"
@@ -44,31 +73,31 @@ const continueYaml = `name: Estro\nversion: 0.0.1\nschema: v1\nmodels:\n` + MODE
       - edit
       - apply
     capabilities:
-      - tool_use
-      - image_input`).join('\n');
+${[m.tool_use ? '      - tool_use' : '', m.vision ? '      - image_input' : ''].filter(Boolean).join('\n')}${m.context_window ? `\n    defaultCompletionOptions:\n      contextLength: ${m.context_window}` : ''}`).join('\n');
 
 const kiloConfig = JSON.stringify({
   provider: { estro: { npm: '@ai-sdk/anthropic', name: 'Estro', options: { baseURL: BASE_URL, apiKey: KEY }, models: Object.fromEntries(MODELS.map((m) => [m.id, { name: m.name }])) } },
-  model: `kali/${first}`,
+  model: `estro/${first}`,
 }, null, 2);
 
+// Zed reads max_tokens as the context window.
 const zedSettings = JSON.stringify({
-  language_models: { openai_compatible: { kali: { api_url: BASE_URL, available_models: MODELS.map((m) => ({ name: m.id, display_name: m.name, max_tokens: 128000, capabilities: { chat_completions: false } })) } } },
+  language_models: { openai_compatible: { estro: { api_url: BASE_URL, available_models: MODELS.map((m) => ({ name: m.id, display_name: m.name, max_tokens: m.context_window ?? 128000, capabilities: { chat_completions: false } })) } } },
 }, null, 2);
 
-const openclawSetup = `openclaw config set models.providers.kali \\
+const openclawSetup = `openclaw config set models.providers.estro \\
   '{"baseUrl":"${BASE_URL}","apiKey":"${KEY}","api":"openai-responses"}' \\
   --strict-json --merge
 
-openclaw config set models.providers.kali.models \\
+openclaw config set models.providers.estro.models \\
   '${JSON.stringify(MODELS.map((m) => ({ id: m.id, name: m.name })))}' \\
   --strict-json --merge
 
-openclaw models set kali/${first}`;
+openclaw models set estro/${first}`;
 
 const anthropicPanel = (title: string) => ({ title, language: 'text', code: `base url:  ${BASE_HOST}\napi key:   ${KEY}\nmodel id:  ${first}` });
 
-export const INTEGRATIONS: Integration[] = [
+return [
   { id: 'opencode', label: 'opencode', icon: 'opencode', description: 'Adds Estro as an OpenAI-compatible provider in opencode.json.',
     configs: [{ title: '~/.config/opencode/opencode.json', language: 'json', code: opencodeProvider }] },
   { id: 'continue', label: 'continue', icon: 'continue', description: 'The YAML file is the current schema. VS Code and JetBrains read the same file.',
@@ -107,14 +136,14 @@ export const INTEGRATIONS: Integration[] = [
     configs: [
       { title: 'Setup wizard: choose custom endpoint', language: 'text', code: `hermes setup\n\nbase url:       ${BASE_URL}\napi key:        ${KEY}\ndefault model:  ${first}` },
       { title: '~/.hermes/.env (owner-only, chmod 0600)', language: 'env', code: `${KEY_ENV}=${KEY}` },
-      { title: '~/.hermes/config.yaml', language: 'yaml', code: `model:\n  provider: kali\n  default: ${first}\n  base_url: ${BASE_URL}\n  api_mode: anthropic_messages\n\nproviders:\n  kali:\n    api: ${BASE_URL}\n    api_key: \${${KEY_ENV}}\n    transport: anthropic_messages` },
-      { title: 'OpenAI-compatible route (swap both fields)', language: 'yaml', code: `model:\n  provider: kali\n  default: ${first}\n  base_url: ${BASE_URL}\n  api_mode: chat_completions\n\nproviders:\n  kali:\n    api: ${BASE_URL}\n    api_key: \${${KEY_ENV}}\n    transport: openai_chat` },
-      { title: 'Switch model for one run, or inside a session', language: 'text', code: `hermes chat --model ${first}\n/model kali-beta --provider kali\n/model kali-beta --provider kali --global   (persists)\n/model kali-beta --provider kali --once     (reverts after one turn)\n\nCLI flags beat config.yaml, which beats .env.` },
+      { title: '~/.hermes/config.yaml', language: 'yaml', code: `model:\n  provider: estro\n  default: ${first}\n  base_url: ${BASE_URL}\n  api_mode: anthropic_messages\n\nproviders:\n  estro:\n    api: ${BASE_URL}\n    api_key: \${${KEY_ENV}}\n    transport: anthropic_messages` },
+      { title: 'OpenAI-compatible route (swap both fields)', language: 'yaml', code: `model:\n  provider: estro\n  default: ${first}\n  base_url: ${BASE_URL}\n  api_mode: chat_completions\n\nproviders:\n  estro:\n    api: ${BASE_URL}\n    api_key: \${${KEY_ENV}}\n    transport: openai_chat` },
+      { title: 'Switch model for one run, or inside a session', language: 'text', code: `hermes chat --model ${first}\n/model kali-beta --provider estro\n/model kali-beta --provider estro --global   (persists)\n/model kali-beta --provider estro --once     (reverts after one turn)\n\nCLI flags beat config.yaml, which beats .env.` },
     ] },
   { id: 'openclaw', label: 'openclaw', icon: 'openclaw', description: 'Two commands register the provider and its models. Validate the config before you start the gateway.',
     configs: [
       { title: 'Register the provider and models', language: 'bash', code: openclawSetup },
-      { title: 'Check before you start the gateway', language: 'bash', code: `openclaw config validate\nopenclaw models list --provider kali\nopenclaw gateway run` },
+      { title: 'Check before you start the gateway', language: 'bash', code: `openclaw config validate\nopenclaw models list --provider estro\nopenclaw gateway run` },
     ] },
   { id: 'aider', label: 'aider', icon: 'aider', description: 'Environment variables for one session, or a persistent YAML config that also declares reasoning effort.',
     configs: [
@@ -132,8 +161,8 @@ export const INTEGRATIONS: Integration[] = [
   { id: 'neovim', label: 'neovim', icon: 'neovim', description: 'Each plugin wants a different URL shape. Export the key once, then point each plugin at it.',
     configs: [
       { title: 'Shell', language: 'bash', code: `export ${KEY_ENV}="${KEY}"` },
-      { title: 'avante.nvim (endpoint keeps /v1)', language: 'lua', code: `require("avante").setup({\n  provider = "kali",\n  providers = {\n    kali = {\n      __inherited_from = "openai",\n      endpoint = "${BASE_URL}",\n      model = "${first}",\n      api_key_name = "${KEY_ENV}",\n      extra_request_body = {\n        reasoning_effort = "medium"\n      }\n    },\n    ["kali-claude"] = {\n      __inherited_from = "claude",\n      endpoint = "${BASE_HOST}",\n      model = "${first}",\n      api_key_name = "${KEY_ENV}"\n    }\n  }\n})` },
-      { title: 'codecompanion.nvim (bare host, path supplied separately)', language: 'lua', code: `require("codecompanion").setup({\n  adapters = {\n    http = {\n      kali = function()\n        return require("codecompanion.adapters").extend("openai_compatible", {\n          env = {\n            url = "${BASE_HOST}",\n            api_key = "${KEY_ENV}",\n            chat_url = "/v1/chat/completions"\n          },\n          schema = { model = { default = "${first}" } }\n        })\n      end\n    }\n  },\n  interactions = {\n    chat = { adapter = "kali" },\n    inline = { adapter = "kali" }\n  }\n})` },
+      { title: 'avante.nvim (endpoint keeps /v1)', language: 'lua', code: `require("avante").setup({\n  provider = "estro",\n  providers = {\n    estro = {\n      __inherited_from = "openai",\n      endpoint = "${BASE_URL}",\n      model = "${first}",\n      api_key_name = "${KEY_ENV}",\n      extra_request_body = {\n        reasoning_effort = "medium"\n      }\n    },\n    ["estro-claude"] = {\n      __inherited_from = "claude",\n      endpoint = "${BASE_HOST}",\n      model = "${first}",\n      api_key_name = "${KEY_ENV}"\n    }\n  }\n})` },
+      { title: 'codecompanion.nvim (bare host, path supplied separately)', language: 'lua', code: `require("codecompanion").setup({\n  adapters = {\n    http = {\n      estro = function()\n        return require("codecompanion.adapters").extend("openai_compatible", {\n          env = {\n            url = "${BASE_HOST}",\n            api_key = "${KEY_ENV}",\n            chat_url = "/v1/chat/completions"\n          },\n          schema = { model = { default = "${first}" } }\n        })\n      end\n    }\n  },\n  interactions = {\n    chat = { adapter = "estro" },\n    inline = { adapter = "estro" }\n  }\n})` },
       { title: 'gp.nvim (full endpoint URLs)', language: 'lua', code: `require("gp").setup({\n  providers = {\n    openai = {\n      endpoint = "${BASE_URL}/chat/completions",\n      secret = os.getenv("${KEY_ENV}")\n    },\n    anthropic = {\n      endpoint = "${BASE_URL}/messages",\n      secret = os.getenv("${KEY_ENV}")\n    }\n  },\n  agents = {\n    {\n      name = "Estro",\n      provider = "openai",\n      chat = true,\n      command = true,\n      model = { model = "${first}" },\n      system_prompt = "You are a helpful coding assistant."\n    }\n  }\n})` },
     ] },
   { id: 'librechat', label: 'librechat', icon: 'librechat', description: 'A custom endpoint in librechat.yaml. The OpenAI format comes first, with an Anthropic-format entry after it.',
@@ -169,6 +198,9 @@ export const INTEGRATIONS: Integration[] = [
       { title: 'curl: Anthropic Messages', language: 'bash', code: `curl ${BASE_URL}/messages \\\n  -H "x-api-key: $${KEY_ENV}" \\\n  -H "anthropic-version: 2023-06-01" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"${first}","max_tokens":256,"messages":[{"role":"user","content":"hi"}]}'` },
     ] },
 ];
+}
+
+export const INTEGRATIONS: Integration[] = buildIntegrations();
 
 export const iconUrl = (i: Integration) => `/icons/ide/${i.icon}.svg`;
 export const anchorFor = (id: string) => `integrations-${id}`;

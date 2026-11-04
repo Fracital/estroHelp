@@ -1,10 +1,28 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { INTEGRATIONS, anchorFor, iconUrl, type Integration, type IntegrationConfig } from '../lib/integrations';
+import { INTEGRATIONS, buildIntegrations, anchorFor, iconUrl, type Integration, type IntegrationConfig, type ModelRow } from '../lib/integrations';
 import RunButton from './RunButton';
 import { runnableSample } from '../lib/run';
 import '../styles/integrations.css';
 
 const HEADING = 'Estro is available on your favorite platforms:';
+
+/** Snippets rebuilt from the live catalogue so limits and names never go stale. */
+function useLiveIntegrations(): Integration[] {
+  const [list, setList] = useState<Integration[]>(INTEGRATIONS);
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/models', { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { models?: ModelRow[] } | null) => {
+        if (!alive || !d?.models?.length) return;
+        setList(buildIntegrations(d.models.map((m) => ({ ...m, levels: m.levels ?? [], context_window: m.context_window ?? null, max_output: m.max_output ?? null }))));
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  return list;
+}
+
 
 function idFromHash(): string | null {
   const h = typeof location !== 'undefined' ? location.hash.replace(/^#/, '') : '';
@@ -43,6 +61,7 @@ function ConfigBlock({ config }: { config: IntegrationConfig }) {
 }
 
 export default function Integrations({ compact = false }: { compact?: boolean }) {
+  const list = useLiveIntegrations();
   const [selected, setSelected] = useState<string | null>(null);
   const tabRefs = useRef<(HTMLElement | null)[]>([]);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -78,7 +97,7 @@ export default function Integrations({ compact = false }: { compact?: boolean })
   };
 
   const onKey = (e: KeyboardEvent, idx: number) => {
-    const last = INTEGRATIONS.length - 1;
+    const last = list.length - 1;
     let next: number | null = null;
     if (e.key === 'ArrowRight') next = idx === last ? 0 : idx + 1;
     else if (e.key === 'ArrowLeft') next = idx === 0 ? last : idx - 1;
@@ -86,17 +105,17 @@ export default function Integrations({ compact = false }: { compact?: boolean })
     else if (e.key === 'End') next = last;
     if (next === null) return;
     e.preventDefault();
-    select(INTEGRATIONS[next]);
+    select(list[next]);
     tabRefs.current[next]?.focus();
   };
 
-  const current = INTEGRATIONS.find((i) => i.id === selected) ?? null;
+  const current = list.find((i) => i.id === selected) ?? null;
 
   return (
     <div class={`integrations ${compact ? 'compact' : ''}`} id={compact ? undefined : 'integrations'}>
       <p class="int-heading">{HEADING}</p>
       <div class="int-strip" role={compact ? undefined : 'tablist'} aria-label="Platforms">
-        {INTEGRATIONS.map((i, idx) => {
+        {list.map((i, idx) => {
           const isSel = !compact && i.id === selected;
           const inner = (
             <>

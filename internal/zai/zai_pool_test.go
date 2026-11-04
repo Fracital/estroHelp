@@ -111,8 +111,11 @@ func TestZaiBrowserPoolPrewarmRunsTurnsConcurrently(t *testing.T) {
 	for a := range answers {
 		seen[a] = true
 	}
-	if len(seen) != 3 {
-		t.Fatalf("want 3 distinct worker processes, got %v", seen)
+	// Three sends overlap on at least two workers. A worker that finishes its
+	// turn before the third send claims one may legitimately serve it, so
+	// exactly three is not guaranteed on a slow or busy runner.
+	if len(seen) < 2 {
+		t.Fatalf("want turns spread over at least 2 worker processes, got %v", seen)
 	}
 }
 

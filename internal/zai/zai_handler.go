@@ -11,6 +11,9 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"elichat/internal/auth"
+	"elichat/internal/relay"
 )
 
 // Public routes for the chat.z.ai (GLM) provider. All three protocol faces
@@ -197,6 +200,7 @@ func zaiServe(w http.ResponseWriter, r *http.Request, _ string, face zaiFace, pa
 func zaiServeBody(w http.ResponseWriter, r *http.Request, body []byte, face zaiFace, parse func([]byte) (*zaiRequest, error)) {
 	req, err := parse(body)
 	if err != nil {
+		zaiDump(r, body, http.StatusBadRequest, err)
 		writeAPIError(w, http.StatusBadRequest, APIErrorDetail{Message: err.Error(), Type: "invalid_request_error", Code: "invalid_request"})
 		return
 	}
@@ -248,6 +252,8 @@ func zaiServeBody(w http.ResponseWriter, r *http.Request, body []byte, face zaiF
 	if !req.stream {
 		reply, err := run()
 		if err != nil {
+			status, _ := zaiErrorStatus(err)
+			zaiDump(r, body, status, err)
 			zaiWriteUpstreamError(w, err)
 			return
 		}
@@ -302,6 +308,8 @@ func zaiServeBody(w http.ResponseWriter, r *http.Request, body []byte, face zaiF
 				face.delta(w, <-deltas)
 			}
 			if out.err != nil {
+				status, _ := zaiErrorStatus(out.err)
+				zaiDump(r, body, status, out.err)
 				face.fail(w, out.err)
 			} else {
 				face.finish(w, out.reply)
@@ -359,6 +367,28 @@ func zaiErrorCode(err error) string {
 		return "zai_captcha_failed"
 	}
 	return "zai_upstream_error"
+}
+
+// zaiDump records a failed Epsilon request: the body the relay received (after
+// the persona), the z.ai status, detail and code when the error came from
+// upstream, and the client's request ids.
+func zaiDump(r *http.Request, body []byte, status int, err error) {
+	var user string
+	var id int
+	if u := auth.UserFrom(r.Context()); u != nil {
+		user, id = u.Username, u.ID
+	}
+	upstreamStatus := status
+	var upstreamBody []byte
+	var up *zaiUpstreamError
+	if errors.As(err, &up) {
+		if up.Status != 0 {
+			upstreamStatus = up.Status
+		}
+		upstreamBody, _ = json.Marshal(map[string]any{"status": up.Status, "code": up.Code, "detail": up.Detail, "captcha_required": up.CaptchaRequired})
+	}
+	dialect := strings.TrimPrefix(r.URL.Path, "/v1/")
+	relay.DumpFailure(r, user, id, "zai", dialect, zaiAPIBase+zaiComplete, body, upstreamStatus, nil, upstreamBody, err)
 }
 
 func zaiWriteUpstreamError(w http.ResponseWriter, err error) {

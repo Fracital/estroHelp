@@ -10,3 +10,4 @@ cliproxyapi.txt
 server.log
 frontend/public/dusk/
 __pycache__/
+build/

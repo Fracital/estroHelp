@@ -1,0 +1,19 @@
+[Unit]
+Description=Estro (elichat)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/opt/elichat
+ExecStart=/opt/elichat/elichat
+Restart=always
+RestartSec=3
+# .env is read from WorkingDirectory by the binary itself.
+Environment=HOME=/root
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+LimitNOFILE=65536
+KillSignal=SIGINT
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

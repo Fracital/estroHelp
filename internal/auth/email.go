@@ -85,9 +85,16 @@ func (m *Mailer) sendTLS(from string, to []string, msg []byte) error {
 	return client.Quit()
 }
 
-// Enabled needs a host and a password: a host alone (the shipped default)
-// would otherwise block registration on a failed unauthenticated send.
-func (m *Mailer) Enabled() bool { return m.Host != "" && m.Pass != "" }
+// Enabled needs a host and either a password or SMTP_NOAUTH=true (a local
+// relay such as postfix). A host alone, the shipped default, would otherwise
+// block registration on a failed unauthenticated send.
+func (m *Mailer) Enabled() bool {
+	if m.Host == "" {
+		return false
+	}
+	noAuth, _ := strconv.ParseBool(os.Getenv("SMTP_NOAUTH"))
+	return m.Pass != "" || noAuth
+}
 
 // Send delivers a plain-text mail. Without SMTP configured, the body is logged so
 // local development can complete the verification flow from the server log.

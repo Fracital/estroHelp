@@ -107,7 +107,12 @@ func (m *Mailer) Send(to, subject, body string) error {
 		"From: " + m.From, "To: " + to, "Subject: " + subject,
 		"MIME-Version: 1.0", "Content-Type: text/plain; charset=utf-8", "", body,
 	}, "\r\n")
+	// Authenticated relays only accept their own mailbox as the envelope
+	// sender, so the login user is the envelope and SMTP_FROM is the header.
 	from := m.fromAddress()
+	if m.User != "" && m.Pass != "" {
+		from = m.User
+	}
 	if m.Secure {
 		return m.sendTLS(from, []string{to}, []byte(msg))
 	}

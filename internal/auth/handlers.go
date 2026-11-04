@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -57,10 +58,16 @@ func (h *Handlers) issueCode(ctx context.Context, userID int, email, ip, kind st
 		return err
 	}
 	h.Store.LogEmail(ctx, email, ip, kind)
+	var err error
 	if kind == "reset" {
-		return h.Mailer.SendPasswordReset(email, code)
+		err = h.Mailer.SendPasswordReset(email, code)
+	} else {
+		err = h.Mailer.SendVerification(email, code)
 	}
-	return h.Mailer.SendVerification(email, code)
+	if err != nil {
+		slog.Error("mail send failed", "kind", kind, "to", email, "host", h.Mailer.Host, "err", err)
+	}
+	return err
 }
 
 func (h *Handlers) register(w http.ResponseWriter, r *http.Request) {

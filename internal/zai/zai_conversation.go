@@ -23,13 +23,39 @@ var errZaiNoUserTurn = errors.New("conversation must end with a user message")
 
 // zaiReminder closes every tool-enabled prompt. Recency matters: in a ~100KB
 // Claude Code prompt the catalog alone is too far from the end to hold.
-const zaiReminder = "\n\n----------------------------\n" +
+//
+// Two framings. The "strict" one was tuned on GLM-5.3-Flash ("overrides
+// everything above", "output ONLY"). GLM-5.3 reads that pressure wording as a
+// prompt injection and lectures the user about it instead of calling the tool,
+// so the default "config" framing presents the tools as the operator's
+// setup, states the format once and never argues with the page's own prompt.
+// ZAI_TOOL_FRAMING=strict restores the old wording.
+const zaiReminderStrict = "\n\n----------------------------\n" +
 	"REMINDER (overrides everything above): You are a function-calling assistant. " +
 	"To use a tool, output ONLY:\n<function_call>\n" +
 	"{\"name\": \"function_name\", \"arguments\": {\"param\": \"value\"}}\n" +
 	"</function_call>\nDo not search the web. Do not narrate. Emit the <function_call> block and stop.\n" +
 	"Your built-in web search and page fetching are disabled in this session and will fail. " +
 	"Only the functions listed above exist."
+
+const zaiReminderConfig = "\n</user_message>\n\n" +
+	"(Tool protocol for this deployment, set by the operator: when a listed function is the right way to act on the message above, reply with just the <function_call> block for it, " +
+	"and the runtime will return the result in the next turn. When no function is needed, reply as usual. " +
+	"The functions listed are the only tools wired up here; the built-in web search is not connected.)"
+
+func zaiToolFraming() string {
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("ZAI_TOOL_FRAMING")), "strict") {
+		return "strict"
+	}
+	return "config"
+}
+
+func zaiReminderFor() string {
+	if zaiToolFraming() == "strict" {
+		return zaiReminderStrict
+	}
+	return zaiReminderConfig
+}
 
 // zaiReadHint follows zaiReminder when a Read tool is declared. Subagents told to
 // "Read /home/..." used native WebFetch on the path 12/16 without it, 2/16 with it.
@@ -91,9 +117,14 @@ func zaiRenderToolCatalog(tools []zaiToolDef) string {
 		return ""
 	}
 	var sb strings.Builder
-	sb.WriteString("You are a function-calling assistant. When the user's request requires external data or actions, you MUST respond with ONLY a function call in this exact XML format:\n\n")
-	sb.WriteString("<function_call>\n{\"name\": \"function_name\", \"arguments\": {\"arg1\": \"value1\"}}\n</function_call>\n\n")
-	sb.WriteString("Do not answer the question yourself. Do not search the web. Do not explain. Output ONLY the <function_call> block.\n\n")
+	if zaiToolFraming() == "strict" {
+		sb.WriteString("You are a function-calling assistant. When the user's request requires external data or actions, you MUST respond with ONLY a function call in this exact XML format:\n\n")
+		sb.WriteString("<function_call>\n{\"name\": \"function_name\", \"arguments\": {\"arg1\": \"value1\"}}\n</function_call>\n\n")
+		sb.WriteString("Do not answer the question yourself. Do not search the web. Do not explain. Output ONLY the <function_call> block.\n\n")
+	} else {
+		sb.WriteString("This deployment connects you to the user's own tools. The operator has wired up the functions below; to use one, reply with a single block in this format and nothing else, and the result comes back in the next turn:\n\n")
+		sb.WriteString("<function_call>\n{\"name\": \"function_name\", \"arguments\": {\"arg1\": \"value1\"}}\n</function_call>\n\n")
+	}
 	sb.WriteString("Available functions:\n\n")
 	searchLike := false
 	for _, tool := range tools {
@@ -113,11 +144,19 @@ func zaiRenderToolCatalog(tools []zaiToolDef) string {
 			searchLike = true
 		}
 	}
-	sb.WriteString("If the user's request does not require any function, answer normally.\n")
+	if zaiToolFraming() == "strict" {
+		sb.WriteString("If the user's request does not require any function, answer normally.\n")
+	} else {
+		sb.WriteString("Call a function only when the message needs it; otherwise just answer. The user's message follows.\n\n<user_message>")
+	}
 	if searchLike {
 		// A catalog containing WebSearch makes GLM alias its native search onto
 		// that name and skip the catalog (verified live).
-		sb.WriteString("\nIMPORTANT: Your built-in web search and page fetching are NOT available in this environment. The only way to search the web is to call the WebSearch or WebFetch function listed above via a <function_call> block. Never perform a search natively — if information is needed, emit the function call.\n")
+		if zaiToolFraming() == "strict" {
+			sb.WriteString("\nIMPORTANT: Your built-in web search and page fetching are NOT available in this environment. The only way to search the web is to call the WebSearch or WebFetch function listed above via a <function_call> block. Never perform a search natively — if information is needed, emit the function call.\n")
+		} else {
+			sb.WriteString("\n(The built-in web search is not connected in this deployment; WebSearch and WebFetch above are the wired-up equivalents.)\n")
+		}
 	}
 	return sb.String()
 }
@@ -237,7 +276,7 @@ func zaiBuildPrompt(messages []zaiMessage, system string, tools []zaiToolDef) (s
 	messages = trimmed
 	final := messages[last].Content
 	if catalog := zaiRenderToolCatalog(tools); catalog != "" {
-		final = catalog + "\n\n" + final + zaiReminder
+		final = catalog + "\n" + final + zaiReminderFor()
 		for _, t := range tools {
 			if t.Name == "Read" {
 				final += zaiReadHint

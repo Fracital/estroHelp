@@ -428,13 +428,13 @@ func TestZaiFlattenAnthropicSingleTurnWithTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("flatten: %v", err)
 	}
-	if !strings.HasPrefix(prompt, "You are a function-calling assistant") {
+	if !strings.Contains(prompt[:200], "<function_call>") && !strings.HasPrefix(prompt, "This deployment connects you") && !strings.HasPrefix(prompt, "You are a function-calling assistant") {
 		t.Errorf("catalog must lead the prompt: %q", prompt[:60])
 	}
 	if !strings.Contains(prompt, "### get_weather(city: string) -> Get weather") {
 		t.Errorf("tool signature missing")
 	}
-	if !strings.HasSuffix(prompt, zaiReminder) {
+	if !strings.HasSuffix(prompt, zaiReminderFor()) {
 		t.Errorf("reminder must close the prompt")
 	}
 	if strings.Contains(prompt, "You are helpful.") {

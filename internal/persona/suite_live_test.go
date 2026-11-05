@@ -193,14 +193,21 @@ func chatOnce(base, model string, history []map[string]string) (string, error) {
 	var out struct {
 		Choices []struct {
 			Message struct {
-				Content string `json:"content"`
+				Content   string `json:"content"`
+				Reasoning string `json:"reasoning_content"`
 			} `json:"message"`
 		} `json:"choices"`
 	}
 	if err := json.Unmarshal(raw, &out); err != nil || len(out.Choices) == 0 {
 		return "", fmt.Errorf("bad reply: %s", raw)
 	}
-	return out.Choices[0].Message.Content, nil
+	m := out.Choices[0].Message
+	// Reasoning is part of the persona's observable behavior; score it together
+	// with the visible reply so hygiene cases can catch scripted-primer echo.
+	if m.Reasoning != "" {
+		return m.Reasoning + "\n\n--- visible reply ---\n\n" + m.Content, nil
+	}
+	return m.Content, nil
 }
 
 // judgeReply asks the judge model to score a reply 1-5 against a rubric,

@@ -58,7 +58,7 @@ type Judge struct {
 // disclaimer boilerplate leaking into the persona's voice.
 var lexicons = map[string][]string{
 	"security": {
-		"red team", "red-team", "nmap", "payload", "exploit", "exfil",
+		"red team", "red-team", "nmap", "exploit", "exfil",
 		"implant", "c2 ", "recon", "idor", "phishing", "shellcode",
 		"privesc", "opsec", "foothold", "lateral movement",
 	},

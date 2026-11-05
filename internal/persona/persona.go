@@ -37,6 +37,7 @@ type Persona struct {
 	ThinkingOff   bool     `json:"thinking_off"`
 	System        string   `json:"-"`
 	Primer        *Primer  `json:"-"`
+	Primers       []Primer `json:"primers"`
 }
 
 // Order is the public display order.
@@ -55,11 +56,12 @@ func init() {
 			panic(fmt.Sprintf("persona %s: %v", id, err))
 		}
 		var sys struct {
-			System string  `json:"system"`
-			Primer *Primer `json:"primer"`
+			System  string   `json:"system"`
+			Primer  *Primer  `json:"primer"`
+			Primers []Primer `json:"primers"`
 		}
 		json.Unmarshal(raw, &sys)
-		p.ID, p.System, p.Primer = id, sys.System, sys.Primer
+		p.ID, p.System, p.Primer, p.Primers = id, sys.System, sys.Primer, sys.Primers
 		if p.BaseModel == "" || p.System == "" || p.Provider == "" {
 			panic("persona " + id + ": base_model, provider and system are required")
 		}
@@ -123,17 +125,31 @@ func (p *Persona) primer() Primer {
 	return pr
 }
 
-// primerMessages renders the primer as chat messages; the assistant turn
-// carries reasoning_content when the primer has reasoning.
-func (p *Persona) primerMessages(withReasoning bool) []json.RawMessage {
-	pr := p.primer()
-	u, _ := json.Marshal(message{Role: "user", Content: pr.User})
-	a := map[string]any{"role": "assistant", "content": pr.Assistant.Content}
-	if withReasoning && pr.Assistant.Reasoning != "" {
-		a["reasoning_content"] = pr.Assistant.Reasoning
+// primers returns the persona's priming exchanges: the multi-turn "primers"
+// list when present (weaker base models need to SEE the persona behave across
+// several exchanges, not one), else the single primer, else a system-prompt
+// echo so every request carries one.
+func (p *Persona) primers() []Primer {
+	if len(p.Primers) > 0 {
+		return p.Primers
 	}
-	ab, _ := json.Marshal(a)
-	return []json.RawMessage{u, ab}
+	return []Primer{p.primer()}
+}
+
+// primerMessages renders every primer exchange as chat messages; assistant
+// turns carry reasoning_content when the primer has reasoning.
+func (p *Persona) primerMessages(withReasoning bool) []json.RawMessage {
+	var out []json.RawMessage
+	for _, pr := range p.primers() {
+		u, _ := json.Marshal(message{Role: "user", Content: pr.User})
+		a := map[string]any{"role": "assistant", "content": pr.Assistant.Content}
+		if withReasoning && pr.Assistant.Reasoning != "" {
+			a["reasoning_content"] = pr.Assistant.Reasoning
+		}
+		ab, _ := json.Marshal(a)
+		out = append(out, u, ab)
+	}
+	return out
 }
 
 // roleOf reads a message's role without decoding the rest.

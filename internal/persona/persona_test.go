@@ -48,14 +48,22 @@ func TestApplyDropsClientSystem(t *testing.T) {
 		r, _ := roleOf(m)
 		roles = append(roles, r)
 	}
-	if strings.Join(roles, ",") != "system,user,assistant,user,assistant,tool" {
+	// system + every primer exchange, then the client conversation.
+	nPrimer := len(p.primers())
+	want := []string{"system"}
+	for range nPrimer {
+		want = append(want, "user", "assistant")
+	}
+	want = append(want, "user", "assistant", "tool")
+	if strings.Join(roles, ",") != strings.Join(want, ",") {
 		t.Fatalf("roles %v", roles)
 	}
 	var sys message
 	if json.Unmarshal(msgs[0], &sys) != nil || sys.Content != p.System {
 		t.Fatal("client system must be replaced by the persona's")
 	}
-	if p.Primer != nil && p.Primer.Assistant.Reasoning != "" && !strings.Contains(string(msgs[2]), `"reasoning_content"`) {
+	// first primer's assistant turn carries reasoning_content when authored
+	if prs := p.primers(); prs[0].Assistant.Reasoning != "" && !strings.Contains(string(msgs[2]), `"reasoning_content"`) {
 		t.Fatal("primer reasoning_content missing")
 	}
 }
@@ -85,7 +93,7 @@ func TestApplyAnthropic(t *testing.T) {
 	if json.Unmarshal(sys, &s) != nil || s != p.System {
 		t.Fatalf("system %s", sys)
 	}
-	if len(msgs) != 3 {
+	if len(msgs) != 1+2*len(p.primers()) {
 		t.Fatalf("msgs %d", len(msgs))
 	}
 }

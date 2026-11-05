@@ -21,6 +21,23 @@ Env vars: `ELICHAT_LIVE=1` gates the live run, `ELICHAT_URL` overrides the
 server (default `http://localhost:3000`), `ELICHAT_JUDGE` names the judge
 model. Judge scores are logged; they fail a case only when below `min_score`.
 
+Live runs authenticate with `ELICHAT_API_KEY`, an `estro_` key from a real
+account. See [suite-runner.md](suite-runner.md) for the dedicated
+`suiterunner` account, where the key lives, and how to bootstrap it on a
+fresh deployment (and why every case 401s/402s when you skip that step).
+
+Every turn of a live run — prompt, raw reply, violations, judge verdict —
+is written to `build/suite-runs/<timestamp>/<suite>/<persona>/<case>-turn<N>.md`
+(`ELICHAT_LOG_DIR` overrides). Read those files when designing prompts or
+primers; the pass/fail line alone never tells you why.
+
+Infra errors (upstream 5xx like Cloudflare 524s, client timeouts, dropped
+connections) are retried up to five attempts with quadratic backoff. If every
+attempt dies the case SKIPs with a loud `infra after retries` message instead
+of failing — persona tests measure persona behavior, not the provider's mood.
+Watch for a wall of skips: that means the server or provider is down, not that
+the personas are healthy.
+
 ## File format
 
 Suites live in `internal/persona/suites/*.suite.json`:

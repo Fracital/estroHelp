@@ -77,7 +77,7 @@ func zaiRunBrowserTransport(ctx context.Context, upstreamModel, prompt string, e
 	out, err := zaiGetBrowserPool().send(ctx, turn, onDelta)
 	// No request reached z.ai on a blocked relay; the worker has moved to a
 	// fresh one, so one retry costs no duplicate generation.
-	for i := 0; err == nil && !out.OK && (out.RelayBlocked || out.Rotated) && !out.Streamed && i < 2; i++ {
+	for i := 0; err == nil && !out.OK && (out.RelayBlocked || out.Rotated) && !out.Streamed && i < 4; i++ {
 		out, err = zaiGetBrowserPool().send(ctx, turn, onDelta)
 	}
 	if err != nil {
@@ -303,6 +303,16 @@ func (w *zaiBrowserWorker) send(ctx context.Context, turn []byte, onDelta func(s
 		// WAF block page or unreachable captcha: this exit IP is unusable,
 		// so move the worker to a fresh one.
 		w.rotateProxy()
+	}
+	if !out.OK && out.Status == http.StatusMethodNotAllowed && !out.Streamed {
+		// The WAF ate the turn before anything was generated. With Mullvad the
+		// worker just rotated onto a fresh relay; without it we still recycle
+		// the browser so a sticky block page doesn't poison the session.
+		// Either way the resend below costs no duplicate generation.
+		if !w.mullvad {
+			w.kill()
+		}
+		out.Rotated = true
 	}
 	if pool := zaiGetAccountPool(); pool != nil && w.account != nil {
 		if !out.OK && out.Status == http.StatusTooManyRequests {

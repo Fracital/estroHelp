@@ -55,7 +55,7 @@ func TestTurnScoring(t *testing.T) {
 		{
 			name: "security lexicon trip in civilian reply",
 			turn: Turn{Expect: Expect{NotLexicon: []string{"security"}}},
-			reply: "here's your photo script — and think of it as a little payload for your workflow",
+			reply: "here's your photo script — and think of it as a little shellcode for your workflow",
 			wantViolation: "lexicon",
 		},
 		{

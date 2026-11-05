@@ -1,4 +1,4 @@
-.PHONY: dev backend frontend build run test db-start db-stop
+.PHONY: dev backend frontend build run test test-live db-start db-stop
 
 PG_DATA ?= .pgdata
 
@@ -19,6 +19,11 @@ run: build
 
 test:
 	go vet ./... && go test ./...
+
+# Persona behavioral suites against a running backend; ELICHAT_JUDGE=kali-gamma
+# adds rubric scoring, ELICHAT_URL overrides the server address.
+test-live:
+	ELICHAT_LIVE=1 go test ./internal/persona/ -run SuitesLive -v -timeout 30m
 
 db-start:
 	@test -d $(PG_DATA) || initdb -D $(PG_DATA) -U postgres --auth=trust -E UTF8 >/dev/null

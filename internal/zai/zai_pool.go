@@ -75,9 +75,23 @@ func zaiRunBrowserTransport(ctx context.Context, upstreamModel, prompt string, e
 	turn, _ := json.Marshal(zaiBrowserTurn{Model: upstreamModel, Prompt: prompt, EnableThinking: enableThinking, ReasoningEffort: effort,
 		Timeout: zaiBrowserTurnSeconds, Stream: onDelta != nil})
 	out, err := zaiGetBrowserPool().send(ctx, turn, onDelta)
-	// No request reached z.ai on a blocked relay; the worker has moved to a
-	// fresh one, so one retry costs no duplicate generation.
-	for i := 0; err == nil && !out.OK && (out.RelayBlocked || out.Rotated) && !out.Streamed && i < 4; i++ {
+	// A relay block, a WAF 405, a busy account or the model at capacity all
+	// fail before z.ai generates anything, so resending costs no duplicate
+	// output. The worker has already moved relay or account where that helps;
+	// keep going until the client's own deadline, with a short backoff so a
+	// capacity wait does not hammer the next relay.
+	started := time.Now()
+	for attempt := 1; err == nil && !out.OK && !out.Streamed && zaiRetryable(out); attempt++ {
+		wait := zaiRetryBackoff(attempt, out)
+		if dl, ok := ctx.Deadline(); ok && time.Until(dl) < wait+zaiRetryMinRemaining {
+			break
+		}
+		logf("event=zai_turn_retry attempt=%d after=%s elapsed=%s status=%d err=%q", attempt, wait, time.Since(started).Round(time.Second), out.Status, truncate(out.Error, 120))
+		select {
+		case <-time.After(wait):
+		case <-ctx.Done():
+			return nil, fmt.Errorf("zai browser transport: %w", ctx.Err())
+		}
 		out, err = zaiGetBrowserPool().send(ctx, turn, onDelta)
 	}
 	if err != nil {
@@ -92,6 +106,38 @@ func zaiRunBrowserTransport(ctx context.Context, upstreamModel, prompt string, e
 		PromptTokens:     out.Usage.PromptTokens,
 		CompletionTokens: out.Usage.CompletionTokens,
 	}, nil
+}
+
+// zaiRetryMinRemaining is how much of the client's deadline a retry must
+// leave for the turn itself; below that the last error is returned.
+const zaiRetryMinRemaining = 90 * time.Second
+
+// zaiRetryable reports whether a failed worker result can be resent without
+// duplicating output: nothing was generated for these.
+func zaiRetryable(out *zaiBrowserResult) bool {
+	switch {
+	case out.RelayBlocked, out.Rotated:
+		return true
+	case out.Status == http.StatusMethodNotAllowed, out.Status == http.StatusTooManyRequests:
+		return true
+	case strings.Contains(out.Error, "MODEL_CONCURRENCY_LIMIT"), strings.Contains(out.Error, "at capacity"):
+		return true
+	case strings.Contains(out.Error, "never fired"), strings.Contains(out.Error, "blocked by upstream WAF"):
+		return true
+	}
+	return false
+}
+
+// zaiRetryBackoff: a relay or account swap already took a few seconds, so a
+// WAF/relay retry goes straight back out; a capacity wait backs off 5s to 30s.
+func zaiRetryBackoff(attempt int, out *zaiBrowserResult) time.Duration {
+	if strings.Contains(out.Error, "MODEL_CONCURRENCY_LIMIT") || strings.Contains(out.Error, "at capacity") || out.Status == http.StatusTooManyRequests {
+		return min(30*time.Second, 5*time.Second*time.Duration(attempt))
+	}
+	if attempt <= 3 {
+		return 500 * time.Millisecond
+	}
+	return min(15*time.Second, 2*time.Second*time.Duration(attempt-3))
 }
 
 // zaiTransportError maps a failed worker result to the error clients see. The

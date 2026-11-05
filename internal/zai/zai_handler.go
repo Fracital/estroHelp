@@ -363,10 +363,15 @@ func zaiErrorStatus(err error) (int, string) {
 
 func zaiErrorCode(err error) string {
 	var up *zaiUpstreamError
-	if errors.As(err, &up) && up.CaptchaRequired {
-		return "zai_captcha_failed"
+	if errors.As(err, &up) {
+		if up.CaptchaRequired {
+			return "captcha_failed"
+		}
+		if up.Code != "" {
+			return up.Code
+		}
 	}
-	return "zai_upstream_error"
+	return "upstream_error"
 }
 
 // zaiDump records a failed Epsilon request: the body the relay received (after
@@ -393,7 +398,10 @@ func zaiDump(r *http.Request, body []byte, status int, err error) {
 
 func zaiWriteUpstreamError(w http.ResponseWriter, err error) {
 	status, typ := zaiErrorStatus(err)
-	writeAPIError(w, status, APIErrorDetail{Message: err.Error(), Type: typ, Code: zaiErrorCode(err)})
+	if status == http.StatusTooManyRequests {
+		w.Header().Set("Retry-After", "30")
+	}
+	writeAPIError(w, status, APIErrorDetail{Message: zaiPublicMessage(err), Type: typ, Code: zaiErrorCode(err)})
 }
 
 // ---------------------------------------------------------------------------
@@ -432,7 +440,7 @@ func (*zaiAnthropicFace) ping(w http.ResponseWriter) {
 func (*zaiAnthropicFace) fail(w http.ResponseWriter, err error) {
 	_, typ := zaiErrorStatus(err)
 	writeSSE(w, "error", map[string]interface{}{
-		"type": "error", "error": map[string]string{"type": typ, "message": err.Error()},
+		"type": "error", "error": map[string]string{"type": typ, "message": zaiPublicMessage(err)},
 	})
 }
 
@@ -536,7 +544,7 @@ func (f *zaiChatFace) ping(w http.ResponseWriter) { fmt.Fprint(w, ": keepalive\n
 
 func (f *zaiChatFace) fail(w http.ResponseWriter, err error) {
 	_, typ := zaiErrorStatus(err)
-	b, _ := json.Marshal(map[string]interface{}{"error": map[string]string{"message": err.Error(), "type": typ, "code": zaiErrorCode(err)}})
+	b, _ := json.Marshal(map[string]interface{}{"error": map[string]string{"message": zaiPublicMessage(err), "type": typ, "code": zaiErrorCode(err)}})
 	fmt.Fprintf(w, "data: %s\n\ndata: [DONE]\n\n", b)
 }
 
@@ -655,7 +663,7 @@ func (f *zaiResponsesFace) ping(w http.ResponseWriter) { fmt.Fprint(w, ": keepal
 func (f *zaiResponsesFace) fail(w http.ResponseWriter, err error) {
 	_, typ := zaiErrorStatus(err)
 	resp := f.response("failed", nil, nil)
-	resp["error"] = map[string]string{"code": typ, "message": err.Error()}
+	resp["error"] = map[string]string{"code": typ, "message": zaiPublicMessage(err)}
 	f.emit(w, "response.failed", map[string]interface{}{"response": resp})
 }
 

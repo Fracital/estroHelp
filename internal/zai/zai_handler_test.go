@@ -265,7 +265,8 @@ func TestZaiMessagesStreamPanicIsSSEError(t *testing.T) {
 		panic("boom")
 	})
 	events, data := zaiSSE(t, zaiPost(t, ts.url+"/zai/v1/messages", `{"stream":true,"messages":[{"role":"user","content":"x"}]}`))
-	if events[len(events)-1] != "error" || !strings.Contains(data[len(data)-1], "boom") {
+	// The panic text stays in the log and the failure dump; the client gets a plain error event.
+	if events[len(events)-1] != "error" || !strings.Contains(data[len(data)-1], `"api_error"`) || strings.Contains(data[len(data)-1], "boom") {
 		t.Fatalf("events=%v last=%s", events, data[len(data)-1])
 	}
 }

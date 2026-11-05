@@ -84,11 +84,7 @@ func zaiRunBrowserTransport(ctx context.Context, upstreamModel, prompt string, e
 		return nil, fmt.Errorf("zai browser transport: %w", err)
 	}
 	if !out.OK {
-		status := http.StatusBadGateway
-		if out.Status == http.StatusTooManyRequests {
-			status = http.StatusTooManyRequests
-		}
-		return nil, &zaiUpstreamError{Status: status, Detail: "zai browser transport: " + out.Error}
+		return nil, zaiTransportError(out)
 	}
 	return &zaiStreamResult{
 		Thinking:         out.Thinking,
@@ -96,6 +92,25 @@ func zaiRunBrowserTransport(ctx context.Context, upstreamModel, prompt string, e
 		PromptTokens:     out.Usage.PromptTokens,
 		CompletionTokens: out.Usage.CompletionTokens,
 	}, nil
+}
+
+// zaiTransportError maps a failed worker result to the error clients see. The
+// raw worker text stays in Detail for the failure dump; Public is plain.
+func zaiTransportError(out *zaiBrowserResult) *zaiUpstreamError {
+	e := &zaiUpstreamError{Status: http.StatusBadGateway, Detail: "zai browser transport: " + out.Error,
+		Public: "The upstream request failed. Please retry."}
+	switch {
+	case out.Status == http.StatusTooManyRequests, strings.Contains(out.Error, "MODEL_CONCURRENCY_LIMIT"), strings.Contains(out.Error, "at capacity"):
+		e.Status, e.Code = http.StatusTooManyRequests, "server_busy"
+		e.Public = "The model is at capacity right now. Retry in about a minute."
+	case out.Status == http.StatusMethodNotAllowed, strings.Contains(out.Error, "blocked by upstream WAF"):
+		e.Code = "upstream_refused"
+		e.Public = "The upstream refused this request from our side. Please retry."
+	case strings.Contains(out.Error, "timed out"), strings.Contains(out.Error, "never fired"):
+		e.Status, e.Code = http.StatusGatewayTimeout, "upstream_timeout"
+		e.Public = "The model took too long to answer. Please retry."
+	}
+	return e
 }
 
 type zaiBrowserPool struct {

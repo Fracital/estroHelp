@@ -106,14 +106,33 @@ var zaiSessionCache struct {
 // zaiUpstreamError carries a z.ai error frame back to the handler.
 type zaiUpstreamError struct {
 	Status int
-	Detail string
+	Detail string // what happened, for the failure dump and the log
 	Code   string
+	// Public is what the client is told. Detail names transports, relays and
+	// WAFs; none of that belongs in a chat window.
+	Public string
 	// CaptchaRequired marks the FRONTEND_CAPTCHA_REQUIRED frame so the caller
 	// can re-solve the captcha and retry once.
 	CaptchaRequired bool
 }
 
 func (e *zaiUpstreamError) Error() string { return e.Detail }
+
+// zaiPublicMessage is the client-facing text for a provider error.
+func zaiPublicMessage(err error) string {
+	var up *zaiUpstreamError
+	if errors.As(err, &up) && up.Public != "" {
+		return up.Public
+	}
+	status, _ := zaiErrorStatus(err)
+	switch status {
+	case 429:
+		return "The model is at capacity right now. Retry in about a minute."
+	case 504:
+		return "The model took too long to answer. Please retry."
+	}
+	return "The upstream request failed. Please retry."
+}
 
 // ---------------------------------------------------------------------------
 // x-signature (reverse-engineered, byte-verified against a live capture)

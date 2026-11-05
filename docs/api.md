@@ -104,7 +104,7 @@ Tool calling uses the standard function-tool schema. Streamed calls arrive as `d
 
 ## Responses
 
-`POST /v1/responses` with `model`, `input` (string or item list), `instructions`, `stream`. Reasoning arrives as `reasoning` output items before the `message` item. `previous_response_id` works: Estro keeps each completed response's items for two hours (up to 1000 per account) and prepends them to the next request, since the upstream retains nothing. `truncation` and `reasoning.effort` levels the model does not offer are dropped; your `instructions` are replaced by the persona's.
+`POST /v1/responses` with `model`, `input` (string or item list), `instructions`, `stream`. Reasoning arrives as `reasoning` output items before the `message` item. `previous_response_id` works: Estro keeps each completed or incomplete (cut short by `max_output_tokens`) response's items for 30 minutes by default (`RESPONSES_CHAIN_TTL`, up to 12 hours; at most 1000 kept) and prepends them to the next request, since the upstream retains nothing. An id Estro no longer has answers `400` with code `previous_response_not_found`; resend the whole conversation in `input`. `truncation` and `reasoning.effort` levels the model does not offer are dropped; your `instructions` are replaced by the persona's.
 
 ## Errors
 
@@ -113,6 +113,7 @@ Error bodies follow the OpenAI shape, `{"error":{"message":"...","type":"...","c
 | Status | Code | Meaning |
 |---|---|---|
 | 400 | `bad_request` | Malformed JSON, empty `messages` or `input` |
+| 400 | `previous_response_not_found` | `previous_response_id` expired or was never kept; resend the full history |
 | 400 | `context_length_exceeded` | The prompt does not fit the model's context window (`param: "messages"`); Anthropic callers get `prompt is too long: N tokens > M maximum`, and a streaming Responses call gets a `response.failed` event instead |
 | 400 | `upstream_error` | The upstream rejected the request; `message` carries its reason and `upstream_status` its status |
 | 401 | type `authentication_error` | `missing API key` or `invalid API key` |

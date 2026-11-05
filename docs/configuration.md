@@ -20,6 +20,7 @@ All configuration is environment variables. `.env` in the working directory is l
 | `ADMIN_USERNAME` | empty | On every start, the user with this name is made an admin if not already. Set it once to bootstrap. |
 | `REQUIRE_VERIFIED_EMAIL` | `true` | Refuse chat until the account's email is verified. Admins are exempt. |
 | `DAILY_REQUEST_LIMIT` | `300` | Chat requests per account per UTC day across all models. `0` disables. Admins and sandbox users are exempt. |
+| `RESPONSES_CHAIN_TTL` | `30m` | How long `/v1/responses` items are kept for `previous_response_id` (Go duration, up to `12h`). |
 | `RATE_AUTH` | `10,10` | Per-minute limit and burst for `POST /api/auth/*`, keyed by client IP. |
 | `RATE_LLM` | `120,120` | Per-minute limit and burst for `POST /v1/*`, keyed by account. Keep this comfortably above what one agent loop produces. |
 | `RATE_APP` | `300,300` | Per-minute limit and burst for the rest of `/api/`, keyed by account. |

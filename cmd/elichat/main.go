@@ -81,6 +81,12 @@ func main() {
 		zai.Prewarm()
 	}
 
+	chainTTL, err := time.ParseDuration(env("RESPONSES_CHAIN_TTL", "30m"))
+	if err != nil {
+		slog.Warn("RESPONSES_CHAIN_TTL invalid; using 30m", "err", err)
+	}
+	slog.Info("responses chain", "ttl", api.SetChainTTL(chainTTL))
+
 	dailyLimit, _ := strconv.Atoi(env("DAILY_REQUEST_LIMIT", "300"))
 	listenAddr := env("HOST", "127.0.0.1") + ":" + env("PORT", "3000")
 	selfHosts := []string{listenAddr, "localhost:" + env("PORT", "3000"), "127.0.0.1:" + env("PORT", "3000")}

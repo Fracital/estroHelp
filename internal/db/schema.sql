@@ -219,7 +219,7 @@ CREATE INDEX IF NOT EXISTS estro_subscription_sub_idx ON estro_subscription (sub
 
 -- Responses API chain: the items of every relayed /v1/responses reply, so a
 -- request naming previous_response_id can be sent with its history after a
--- restart or from another process. Rows expire after two hours.
+-- restart or from another process. Rows expire after RESPONSES_CHAIN_TTL.
 CREATE TABLE IF NOT EXISTS response_chain (
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     response_id TEXT NOT NULL,

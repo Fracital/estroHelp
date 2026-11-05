@@ -138,11 +138,15 @@ func (c *Chat) responses(w http.ResponseWriter, r *http.Request) {
 	if raw, ok := passthrough["previous_response_id"]; ok {
 		var prev string
 		if json.Unmarshal(raw, &prev) == nil && prev != "" {
-			if chained := chainInput(u.ID, prev, req.Input); chained != nil {
-				clientInput, _ = json.Marshal(chained)
-			} else {
-				slog.Warn("responses: previous_response_id not kept; sending input without history", "user", u.Username, "kept", storedResponseCount())
+			chained := chainInput(u.ID, prev, req.Input)
+			if chained == nil {
+				slog.Warn("responses: previous_response_id not kept; rejecting", "user", u.Username, "kept", storedResponseCount())
+				relay.WriteError(w, relay.OpenAI, 400, "invalid_request_error",
+					"Previous response with id '"+prev+"' not found; resend the full conversation in input.",
+					map[string]any{"code": "previous_response_not_found", "param": "previous_response_id"})
+				return
 			}
+			clientInput, _ = json.Marshal(chained)
 		}
 	}
 	if repaired, n := repairResponsesOrphans(inputItems(clientInput)); n > 0 {

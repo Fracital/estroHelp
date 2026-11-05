@@ -82,7 +82,7 @@ const kiloConfig = JSON.stringify({
 
 // Zed reads max_tokens as the context window.
 const zedSettings = JSON.stringify({
-  language_models: { openai_compatible: { estro: { api_url: BASE_URL, available_models: MODELS.map((m) => ({ name: m.id, display_name: m.name, max_tokens: m.context_window ?? 128000, capabilities: { chat_completions: false } })) } } },
+  language_models: { anthropic: { api_url: BASE_HOST, available_models: MODELS.map((m) => ({ name: m.id, display_name: m.name, max_tokens: m.context_window ?? 128000 })) } },
 }, null, 2);
 
 const openclawSetup = `openclaw config set models.providers.estro \\
@@ -107,13 +107,12 @@ return [
       { title: 'chatLanguageModels.json', language: 'json', code: vscodeChatLanguageModels },
       { title: 'settings.json (only if signed out of GitHub)', language: 'json', code: `"chat.utilityModel": "${first}",\n"chat.utilitySmallModel": "kali-epsilon"` },
     ] },
-  { id: 'cursor', label: 'cursor', icon: 'cursor', description: "Chat models through Cursor's OpenAI API key override. Tab completion stays on Cursor's own models.",
+  { id: 'cursor', label: 'cursor', icon: 'cursor', description: "Two ways in: Cursor's OpenAI API key override for chat models, or the cursor-byok config file to register every model as its own adapter in the picker. Tab completion stays on Cursor's own models either way.",
     configs: [
       { title: 'Settings → Models → API Keys', language: 'text', code: `openai api key:  ${KEY}\nbase url:        ${BASE_URL}` },
       { title: 'Settings → Models: add each model and leave its toggle on', language: 'text', code: idList },
+      { title: 'cursor-byok: ~/.config/cursor-byok/config.json', language: 'json', code: cursorByokConfig },
     ] },
-  { id: 'cursorbyok', label: 'cursor-byok', icon: 'cursorbyok', description: 'Registers each model as its own adapter in the cursor-byok config file, so every model shows in the picker.',
-    configs: [{ title: '~/.config/cursor-byok/config.json', language: 'json', code: cursorByokConfig }] },
   { id: 'windsurf', label: 'windsurf', icon: 'windsurf', description: "Cascade's OpenAI-compatible provider. If newer builds hide this panel, use Continue or Cline.",
     configs: [{ title: 'Settings → Cascade → Model providers → OpenAI compatible', language: 'text', code: `base url:  ${BASE_URL}\napi key:   ${KEY}\nmodel:     ${first}` }] },
   { id: 'cline', label: 'cline', icon: 'cline', description: 'Anthropic provider with a custom base URL. The IDE, CLI and SDK share ~/.cline/data/settings/providers.json.',
@@ -151,7 +150,7 @@ return [
       { title: '~/.aider.conf.yml', language: 'yaml', code: `openai-api-base: ${BASE_URL}\nopenai-api-key: ${KEY}\nmodel: openai/${first}\nreasoning-effort: high` },
       { title: '.aider.model.settings.yml', language: 'yaml', code: `- name: openai/${first}\n  accepts_settings: ["reasoning_effort"]` },
     ] },
-  { id: 'zed', label: 'zed', icon: 'zed', description: `Uses the Responses API. Zed reads the key from the system keychain or ${KEY_ENV}, not from settings.json.`,
+  { id: 'zed', label: 'zed', icon: 'zed', description: 'Uses the Anthropic provider with a custom API URL. Zed reads the key from the system keychain or ANTHROPIC_API_KEY, not from settings.json.',
     configs: [{ title: '~/.config/zed/settings.json', language: 'json', code: zedSettings }] },
   { id: 'jetbrains', label: 'jetbrains', icon: 'jetbrains', description: 'AI Assistant has a built-in OpenAI-compatible provider (2026.2+). If the test fails, try the base URL without /v1.',
     configs: [
@@ -183,17 +182,15 @@ return [
       { title: 'Models → New: model id', language: 'text', code: `model id:  ${first}` },
       { title: 'Anthropic provider instead', language: 'text', code: `api host:   ${BASE_HOST}\napi key:    ${KEY}` },
     ] },
-  { id: 'sdk', label: 'sdks', icon: 'sdk', description: 'OpenAI SDK settings with the Responses API preferred, plus the environment for any Anthropic SDK.',
+  { id: 'sdk', label: 'sdks', icon: 'sdk', description: 'Anthropic SDK settings for the Messages API. Any SDK that reads ANTHROPIC_BASE_URL works the same way.',
     configs: [
-      { title: 'OpenAI SDKs: environment', language: 'bash', code: `export OPENAI_BASE_URL=${BASE_URL}\nexport OPENAI_API_KEY="$${KEY_ENV}"` },
-      { title: 'Python (OpenAI SDK)', language: 'python', code: `from openai import OpenAI\n\nclient = OpenAI()  # reads OPENAI_BASE_URL / OPENAI_API_KEY\nresp = client.responses.create(model="${first}", input="hi")\nprint(resp.output_text)` },
-      { title: 'Go (openai-go)', language: 'go', code: `client := openai.NewClient()  // reads OPENAI_BASE_URL / OPENAI_API_KEY\nresp, err := client.Responses.New(ctx, responses.ResponseNewParams{\n    Model: "${first}",\n    Input: responses.ResponseNewParamsInputUnion{OfString: openai.String("hi")},\n})` },
-      { title: 'Any Anthropic SDK: environment', language: 'bash', code: `export ANTHROPIC_BASE_URL=${BASE_HOST}\nexport ANTHROPIC_API_KEY="$${KEY_ENV}"` },
+      { title: 'Environment', language: 'bash', code: `export ANTHROPIC_BASE_URL=${BASE_HOST}\nexport ANTHROPIC_API_KEY="$${KEY_ENV}"` },
+      { title: 'Python (Anthropic SDK)', language: 'python', code: `from anthropic import Anthropic\n\nclient = Anthropic()  # reads ANTHROPIC_BASE_URL / ANTHROPIC_API_KEY\nmsg = client.messages.create(model="${first}", max_tokens=256, messages=[{"role": "user", "content": "hi"}])\nprint(msg.content[0].text)` },
+      { title: 'Go (anthropic-sdk-go)', language: 'go', code: `client := anthropic.NewClient()  // reads ANTHROPIC_BASE_URL / ANTHROPIC_API_KEY\nmsg, err := client.Messages.New(ctx, anthropic.MessageNewParams{\n    Model:     "${first}",\n    MaxTokens: 256,\n    Messages: []anthropic.MessageParam{\n        anthropic.NewUserMessage(anthropic.NewTextBlock("hi")),\n    },\n})` },
     ] },
   { id: 'other', label: 'other', icon: 'openai', description: 'Endpoint reference and curl examples for each wire format.',
     configs: [
       { title: 'Endpoint reference', language: 'text', code: `openai base url:     ${BASE_URL}\nanthropic base url:  ${BASE_HOST}\napi key:             ${KEY}\nmodel:               ${first}` },
-      { title: 'curl: OpenAI Responses', language: 'bash', code: `curl ${BASE_URL}/responses \\\n  -H "Authorization: Bearer $${KEY_ENV}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"${first}","input":"hi"}'` },
       { title: 'curl: OpenAI chat completions', language: 'bash', code: `curl ${BASE_URL}/chat/completions \\\n  -H "Authorization: Bearer $${KEY_ENV}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"${first}","messages":[{"role":"user","content":"hi"}]}'` },
       { title: 'curl: Anthropic Messages', language: 'bash', code: `curl ${BASE_URL}/messages \\\n  -H "x-api-key: $${KEY_ENV}" \\\n  -H "anthropic-version: 2023-06-01" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"${first}","max_tokens":256,"messages":[{"role":"user","content":"hi"}]}'` },
     ] },

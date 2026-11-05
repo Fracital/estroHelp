@@ -22,9 +22,32 @@ import (
 // next request's input. The field itself is still stripped.
 
 const (
-	chainTTL = 2 * time.Hour
-	chainMax = 1000
+	chainTTLDefault = 30 * time.Minute
+	chainTTLMax     = 12 * time.Hour
+	chainMax        = 1000
 )
+
+var chainTTL = chainTTLDefault
+
+// SetChainTTL sets how long response items are kept, clamped to (0, 12h].
+func SetChainTTL(d time.Duration) time.Duration {
+	switch {
+	case d <= 0:
+		d = chainTTLDefault
+	case d > chainTTLMax:
+		d = chainTTLMax
+	}
+	chainMu.Lock()
+	chainTTL = d
+	chainMu.Unlock()
+	return d
+}
+
+func chainTTLSeconds() int {
+	chainMu.Lock()
+	defer chainMu.Unlock()
+	return int(chainTTL / time.Second)
+}
 
 type storedResponse struct {
 	items []json.RawMessage
@@ -105,8 +128,8 @@ func chainLoad(userID int, previousID string) *storedResponse {
 	defer cancel()
 	var raw []byte
 	var at time.Time
-	err := chainDB.QueryRow(ctx, `SELECT items, created FROM response_chain WHERE user_id=$1 AND response_id=$2 AND created > now() - $3::interval`,
-		userID, previousID, chainTTL.String()).Scan(&raw, &at)
+	err := chainDB.QueryRow(ctx, `SELECT items, created FROM response_chain WHERE user_id=$1 AND response_id=$2 AND created > now() - make_interval(secs => $3)`,
+		userID, previousID, chainTTLSeconds()).Scan(&raw, &at)
 	if err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
 			slog.Warn("response chain: load failed", "err", err)
@@ -144,7 +167,7 @@ func chainPersist(userID int, responseID string, items []json.RawMessage) {
 		slog.Warn("response chain: persist failed", "err", err)
 		return
 	}
-	chainDB.Exec(ctx, `DELETE FROM response_chain WHERE created < now() - $1::interval`, chainTTL.String())
+	chainDB.Exec(ctx, `DELETE FROM response_chain WHERE created < now() - make_interval(secs => $1)`, chainTTLSeconds())
 }
 
 func storedResponseCount() int {
@@ -218,7 +241,7 @@ func (rr *responseRecorder) observe(line []byte) {
 		if len(ev.Response.Output) > 0 {
 			rr.completedOutput = ev.Response.Output
 		}
-		if ev.Response.Status == "completed" || ev.Type == "response.completed" || ev.Type == "response.done" {
+		if terminalStatus(ev.Response.Status) || ev.Type == "response.completed" || ev.Type == "response.done" || ev.Type == "response.incomplete" {
 			rr.completed = true
 		}
 		return
@@ -230,10 +253,15 @@ func (rr *responseRecorder) observe(line []byte) {
 		if len(ev.Output) > 0 {
 			rr.completedOutput = ev.Output
 		}
-		if ev.Status == "completed" {
+		if terminalStatus(ev.Status) {
 			rr.completed = true
 		}
 	}
+}
+
+// terminalStatus: incomplete replies (max_output_tokens) still keep their items.
+func terminalStatus(s string) bool {
+	return s == "completed" || s == "incomplete"
 }
 
 func (rr *responseRecorder) result() (string, []json.RawMessage, bool) {

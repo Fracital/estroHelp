@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"unicode"
 )
 
 //go:embed *.json
@@ -139,15 +140,69 @@ func (p *Persona) primers() []Primer {
 // primerMessages renders every primer exchange as chat messages; assistant
 // turns carry reasoning_content when the primer has reasoning.
 func (p *Persona) primerMessages(withReasoning bool) []json.RawMessage {
+	return p.primerMessagesFor(withReasoning, nil)
+}
+
+// primerMessagesFor renders primer exchanges, dropping a primer's scripted
+// reasoning when the real conversation already contains a similar exchange —
+// the real turn's own reasoning carries the continuity and the scripted copy
+// is context pollution. Similarity is cheap on purpose: shared long words
+// between the primer's user turn and any client user turn.
+func (p *Persona) primerMessagesFor(withReasoning bool, client []json.RawMessage) []json.RawMessage {
 	var out []json.RawMessage
 	for _, pr := range p.primers() {
 		u, _ := json.Marshal(message{Role: "user", Content: pr.User})
 		a := map[string]any{"role": "assistant", "content": pr.Assistant.Content}
-		if withReasoning && pr.Assistant.Reasoning != "" {
+		if withReasoning && pr.Assistant.Reasoning != "" && !primerRedundant(pr, client) {
 			a["reasoning_content"] = pr.Assistant.Reasoning
 		}
 		ab, _ := json.Marshal(a)
 		out = append(out, u, ab)
+	}
+	return out
+}
+
+// primerRedundant reports whether the client conversation already contains a
+// user turn resembling the primer's, which makes the primer's scripted
+// reasoning redundant: the real exchange carries its own.
+func primerRedundant(pr Primer, client []json.RawMessage) bool {
+	sig := significantWords(pr.User)
+	if len(sig) == 0 {
+		return false
+	}
+	for _, raw := range client {
+		role, obj := roleOf(raw)
+		if role != "user" {
+			continue
+		}
+		var text string
+		json.Unmarshal(obj["content"], &text)
+		if text == "" {
+			continue
+		}
+		shared := 0
+		for w := range significantWords(text) {
+			if sig[w] {
+				shared++
+			}
+		}
+		if shared >= 3 || (len(sig) > 0 && shared*2 >= len(sig)) {
+			return true
+		}
+	}
+	return false
+}
+
+// significantWords extracts content words (5+ letters, lowercased) — the
+// vocabulary that makes two asks "the same ask" regardless of phrasing.
+func significantWords(s string) map[string]bool {
+	out := map[string]bool{}
+	for _, w := range strings.FieldsFunc(strings.ToLower(s), func(r rune) bool {
+		return !unicode.IsLetter(r)
+	}) {
+		if len(w) >= 5 {
+			out[w] = true
+		}
 	}
 	return out
 }
@@ -171,7 +226,7 @@ func (p *Persona) Apply(messages []json.RawMessage) []json.RawMessage {
 	out := make([]json.RawMessage, 0, len(messages)+3)
 	sys, _ := json.Marshal(message{Role: "system", Content: p.System})
 	out = append(out, sys)
-	out = append(out, p.primerMessages(true)...)
+	out = append(out, p.primerMessagesFor(true, messages)...)
 	for _, raw := range messages {
 		role, obj := roleOf(raw)
 		switch role {

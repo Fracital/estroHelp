@@ -451,7 +451,7 @@ func zaiBuildQuery(sess *zaiSession, ts, requestID string) string {
 	q.Set("timestamp", ts)
 	q.Set("requestId", requestID)
 	q.Set("user_id", sess.UserID)
-	q.Set("version", "0.0.1")
+	q.Set("version", "1.0.91")
 	q.Set("platform", "web")
 	q.Set("token", sess.Token)
 	q.Set("user_agent", cloudflareBrowserUserAgent)

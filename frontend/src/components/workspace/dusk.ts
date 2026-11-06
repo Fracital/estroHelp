@@ -103,7 +103,8 @@ export function manager(): Promise<ProcessManager> {
     const repl = await dusk.bootRepl(() => {}, {
       skipPidZero: true, fs: 'tfs', user: 'user', hostname: HOSTNAME, net: networkOptions() as never,
     });
-    await repl.processManager.spawnSync(SHELL, ['-c', `mkdir -p ${WORKSPACE_ROOT}`], { cwd: HOME, env: ENV });
+    await repl.processManager.spawnSync(SHELL, ['-c', `mkdir -p ${WORKSPACE_ROOT} /etc && echo ${HOSTNAME} > /etc/hostname`], { cwd: HOME, env: ENV });
+    registerExtraCommands(repl.processManager);
     setPhase('ready');
     return repl.processManager;
   })().catch((error: unknown) => {
@@ -112,6 +113,84 @@ export function manager(): Promise<ProcessManager> {
     throw error;
   });
   return booting;
+}
+
+/**
+ * Extra shell commands registered after boot. Most coreutils (grep, head, tail, sort, cp, mv, etc.) are already
+ * built into dsh and do NOT need registerBinary. Only commands dsh lacks go here. Each source is a single JS
+ * program the engine runs directly (not through the shell). Ported 1:1 from the abulxt workspace commands/.
+ */
+function registerExtraCommands(pm: ProcessManager): void {
+  // Process commands. The engine passes [node, scriptPath, ...args], so arguments start at index 2.
+  // The process list comes from the host (process.list); signals go through process.kill.
+  const procLib = [
+    'var SIGNALS={1:"SIGHUP",2:"SIGINT",3:"SIGQUIT",9:"SIGKILL",15:"SIGTERM",18:"SIGCONT",19:"SIGSTOP",20:"SIGTSTP"};',
+    'function listProcs(){var r=ipc.send({f:"process.list"});var l=r&&r.value!==undefined?r.value:r;return (l||[]).slice().sort(function(a,b){return a.pid-b.pid});}',
+    'function sigName(s){s=String(s).toUpperCase();if(s==="0")return "SIG0";if(/^[0-9]+$/.test(s))return SIGNALS[s]||s;return s.indexOf("SIG")===0?s:"SIG"+s;}',
+    'function killPid(pid,sig){var r=ipc.send({f:"process.kill",pid:pid,signal:sig});if(r&&r.error){process.stderr.write("kill: ("+pid+") "+r.error+"\\n");return false;}return true;}',
+  ].join('\n');
+  pm.registerBinary('/bin/ps', [
+    '#!/bin/node',
+    procLib,
+    'var rows=listProcs();process.stdout.write("  PID  PPID  PGID S COMMAND\\n");',
+    'for(var i=0;i<rows.length;i++){var p=rows[i];var cmd=(p.argv||[]).slice(1).join(" ")||"-";process.stdout.write(String(p.pid).padStart(5)+String(p.ppid).padStart(6)+String(p.pgid).padStart(6)+" "+(p.state||"R")+" "+cmd+"\\n");}',
+  ].join('\n'));
+  pm.registerBinary('/bin/top', [
+    '#!/bin/node',
+    procLib,
+    'process.stdout.write("Dusk top: a snapshot. Run top again to refresh.\\n");',
+    'var rows=listProcs();process.stdout.write(rows.length+" processes\\n  PID  PPID  PGID S COMMAND\\n");',
+    'for(var i=0;i<rows.length;i++){var p=rows[i];process.stdout.write(String(p.pid).padStart(5)+String(p.ppid).padStart(6)+String(p.pgid).padStart(6)+" "+(p.state||"R")+" "+((p.argv||[]).slice(1).join(" ")||"-")+"\\n");}',
+  ].join('\n'));
+  pm.registerBinary('/bin/kill', [
+    '#!/bin/node',
+    procLib,
+    'var args=process.argv.slice(2),sig="SIGTERM";',
+    'if(args[0]==="-l"){process.stdout.write("HUP INT QUIT KILL TERM CONT STOP TSTP TTIN TTOU\\n");process.exit(0);}',
+    'if(args[0]==="-s"||args[0]==="--signal"){if(args.length<2){process.stderr.write("kill: missing signal argument\\n");process.exit(2);}args.shift();sig=sigName(args.shift());}',
+    'else if(args.length&&/^-[A-Za-z0-9]+$/.test(args[0]))sig=sigName(args.shift().slice(1));',
+    'if(args[0]==="--")args.shift();',
+    'if(!args.length){process.stderr.write("usage: kill [-SIGNAL|-s SIGNAL] PID...\\n");process.exit(2);}',
+    'var ok=true;for(var i=0;i<args.length;i++){var pid=Number(args[i]);if(!Number.isSafeInteger(pid)){process.stderr.write("kill: "+args[i]+": arguments must be process IDs\\n");ok=false;continue;}if(!killPid(pid,sig))ok=false;}',
+    'process.exit(ok?0:1);',
+  ].join('\n'));
+  pm.registerBinary('/bin/pkill', [
+    '#!/bin/node',
+    procLib,
+    'var args=process.argv.slice(2);var sig="SIGTERM";if(args.length&&args[0].charAt(0)==="-"){sig=sigName(args.shift().slice(1));}',
+    'if(!args.length){process.stderr.write("usage: pkill [-SIGNAL] PATTERN\\n");process.exit(2);}',
+    'var re=new RegExp(args[args.length-1]);var hits=listProcs().filter(function(p){return p.argv&&p.argv.length>1&&re.test(p.argv.slice(1).join(" "));});',
+    'if(!hits.length)process.exit(1);var ok=true;for(var i=0;i<hits.length;i++){if(!killPid(hits[i].pid,sig))ok=false;}',
+    'process.exit(ok?0:1);',
+  ].join('\n'));
+  // Only the lightweight process core is eager. Command families load on first invocation, so the compiled
+  // app entry chunk does not carry their source bodies.
+  const families = {
+    core: ['yes', 'realpath', 'mktemp', 'cmp', 'sha256sum', 'xxd'],
+    archives: ['gzip', 'gunzip', 'tar', 'zip', 'unzip'],
+    build: ['make', 'patch'],
+    git: ['git'],
+    sshKeys: ['ssh-keygen'],
+  } as const;
+  for (const command of families.core) {
+    pm.registerLazyBinary(`/bin/${command}`, () => import('./commands/core').then((module) => module.sources[command]));
+  }
+  for (const command of families.archives) {
+    pm.registerLazyBinary(`/bin/${command}`, () => import('./commands/archives').then((module) => module.sources[command]));
+  }
+  for (const command of families.build) {
+    pm.registerLazyBinary(`/bin/${command}`, () => import('./commands/build').then((module) => module.sources[command]));
+  }
+  for (const command of families.git) {
+    pm.registerLazyBinary(`/bin/${command}`, () => import('./commands/git').then((module) => module.sources[command]));
+  }
+  for (const command of families.sshKeys) {
+    pm.registerLazyBinary(`/bin/${command}`, () => import('./commands/ssh-keys').then((module) => module.sources[command]));
+  }
+  // uname: not in dsh. The #!/bin/node shebang tells dsh to run it through the JS engine.
+  pm.registerBinary('/bin/uname', '#!/bin/node\nvar args=process.argv.filter(function(a){return a.charAt(0)==="-"});var s="Dusk",n=process.env.HOSTNAME||"vm",r="1.0.0",v="Kali Workspace",m="wasm32";if(!args.length){process.stdout.write(s+"\\n")}else{var o=[];for(var i=0;i<args.length;i++){var a=args[i];if(a==="-s")o.push(s);else if(a==="-n")o.push(n);else if(a==="-r")o.push(r);else if(a==="-v")o.push(v);else if(a==="-m")o.push(m);else if(a==="-a"){o.push(s,n,r,v,m)}else{process.stderr.write("uname: unknown option "+a+"\\n");process.exit(1)}}process.stdout.write(o.join(" ")+"\\n")}');
+  // id: not in dsh
+  pm.registerBinary('/bin/id', '#!/bin/node\nprocess.stdout.write("uid=1000("+(process.env.USER||"user")+") gid=1000("+(process.env.USER||"user")+")\\n");');
 }
 
 // ---- filesystem ---------------------------------------------------------------

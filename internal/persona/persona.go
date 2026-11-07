@@ -68,7 +68,8 @@ func init() {
 		}
 		personas[id] = &p
 	}
-	registerAliases()}
+}
+
 func All() []*Persona {
 	out := make([]*Persona, 0, len(Order))
 	for _, id := range Order {
@@ -77,15 +78,15 @@ func All() []*Persona {
 	return out
 }
 
-// Resolve accepts the persona id or its display name, case-insensitively.
+// Resolve accepts the persona id, its display name, or an Aliases entry,
+// case-insensitively.
 func Resolve(model string) (*Persona, bool) {
 	m := strings.ToLower(strings.TrimSpace(model))
+	m = strings.ReplaceAll(m, " ", "-")
 	if p, ok := personas[m]; ok {
 		return p, true
 	}
-	m = strings.ReplaceAll(m, " ", "-")
-	p, ok := personas[m]
-	return p, ok
+	return resolveAlias(m)
 }
 
 // ThinkingFor decides what reasoning level to forward for a client's request.

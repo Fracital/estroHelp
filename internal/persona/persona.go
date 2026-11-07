@@ -68,8 +68,7 @@ func init() {
 		}
 		personas[id] = &p
 	}
-}
-
+	registerAliases()}
 func All() []*Persona {
 	out := make([]*Persona, 0, len(Order))
 	for _, id := range Order {

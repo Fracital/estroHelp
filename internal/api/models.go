@@ -10,7 +10,9 @@ import (
 
 // modelRecord is the OpenRouter-style record abulxt serves from /v1/models:
 // the OpenAI list shape plus the limits and capabilities IDE clients read.
-func modelRecord(p *persona.Persona) map[string]any {
+// id is what the record claims to be — the persona id for brand rows, the
+// alias spelling for alias rows.
+func modelRecord(p *persona.Persona, id string) map[string]any {
 	params := []string{"max_tokens", "stream", "stop", "temperature", "top_p"}
 	if len(p.Levels) > 0 {
 		params = append(params, "reasoning_effort")
@@ -28,7 +30,7 @@ func modelRecord(p *persona.Persona) map[string]any {
 		levels = []string{}
 	}
 	return map[string]any{
-		"id": p.ID, "object": "model", "created": 0, "owned_by": "estro",
+		"id": id, "object": "model", "created": 0, "owned_by": "estro",
 		"name": p.Name, "description": p.Description, "short": p.Short,
 		"context_length": p.ContextWindow, "max_completion_tokens": p.MaxOutput,
 		"architecture":         map[string]any{"input_modalities": inputs, "output_modalities": []string{"text"}},
@@ -60,7 +62,7 @@ func (c *Chat) listModelsOpenAI(w http.ResponseWriter, r *http.Request) {
 		if freeOnly && !billing.IsFreeModel(p.ID) {
 			continue
 		}
-		data = append(data, modelRecord(p))
+		data = append(data, modelRecord(p, p.ID))
 	}
 	auth.WriteJSON(w, 200, map[string]any{"object": "list", "data": data})
 }

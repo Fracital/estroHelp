@@ -33,7 +33,7 @@ deploy_app() {
 	fi
 
 	install -d -m 700 "$WS_ROOT"
-	local ws="$WS_ROOT/ws-$sha"
+	ws="$WS_ROOT/ws-$sha"  # global: the EXIT trap runs after this function returns
 	rm -rf "$ws"
 	install -d -m 700 "$ws"
 	trap 'rm -rf "$ws"' EXIT

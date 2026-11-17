@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Root-side deploy gate, run by the self-hosted GitHub runner through sudo:
-#   sudo /usr/local/sbin/estro-deploy <workspace> [sha]
-# It only accepts a checkout under the runner's work directory, copies the built
+# Root-side installer, run by /usr/local/sbin/estro-deploy-gate (the CI deploy key's forced command):
+#   /usr/local/sbin/estro-deploy <workspace> [sha]
+# It only accepts a workspace the gate unpacked under /var/lib/estro-deploy, copies the built
 # artifacts into /opt/elichat, and restarts the service. Secrets (.env,
 # zai_config.json) are never touched.
 set -euo pipefail
 WS="${1:?workspace}"; SHA="${2:-unknown}"
 DEST=/opt/elichat
-case "$(readlink -f "$WS")" in /opt/actions-runner/_work/*) ;; *) echo "refusing workspace outside the runner: $WS" >&2; exit 2 ;; esac
+case "$(readlink -f "$WS")" in /var/lib/estro-deploy/ws-*) ;; *) echo "refusing workspace outside /var/lib/estro-deploy: $WS" >&2; exit 2 ;; esac
 for f in build/elichat frontend/dist/index.html ext/zai_browser.py deploy/elichat.service deploy/nginx-estro.help.conf; do
   [ -e "$WS/$f" ] || { echo "missing $f in workspace" >&2; exit 2; }
 done

@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Forced command for the CI deploy key on chat (/usr/local/sbin/estro-deploy-gate), installed by
+# scripts/gate-install.sh; CI never updates it. The key's authorized_keys line is
+#   restrict,command="/usr/local/sbin/estro-deploy-gate",from="172.16.5.204" ssh-ed25519 ...
+# so the self-hosted runner divide-deploy (CT 204 on divide) is the only client it accepts.
+#
+# The only command is `deploy <40-hex sha>`, with a gzip tarball of the built artifacts on stdin
+# (the runner builds; chat needs no toolchains or GitHub credentials). Only the paths estro-deploy
+# installs are extracted; then estro-deploy copies them into /opt/elichat, restarts elichat and
+# health-checks it. Secrets (.env, zai_config.json) are never touched.
+set -euo pipefail
+umask 022
+
+WS_ROOT=/var/lib/estro-deploy
+LOG=/var/log/estro-deploy.log
+MAX_BYTES=$((300 * 1024 * 1024))
+PATHS=(build/elichat frontend/dist ext deploy/elichat.service deploy/nginx-estro.help.conf)
+
+read -r -a cmd <<<"${SSH_ORIGINAL_COMMAND:-}"
+
+log() { printf '%s %s\n' "$(date -u +%FT%TZ)" "$*" | tee -a "$LOG" >&2; }
+
+deploy_app() {
+	local sha=${1:-}
+	[[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "usage: deploy <40-hex sha> < artifacts.tar.gz" >&2; exit 64; }
+	exec 9>/run/lock/estro-deploy.lock
+	flock -w 900 9
+
+	if [[ -f /opt/elichat/DEPLOYED && $(cat /opt/elichat/DEPLOYED) == "$sha" ]]; then
+		log "already at $sha"
+		cat >/dev/null
+		return
+	fi
+
+	install -d -m 700 "$WS_ROOT"
+	local ws="$WS_ROOT/ws-$sha"
+	rm -rf "$ws"
+	install -d -m 700 "$ws"
+	trap 'rm -rf "$ws"' EXIT
+
+	# At most MAX_BYTES of compressed input; only the whitelisted paths, no owners or modes from the archive.
+	head -c "$MAX_BYTES" | tar -xzf - -C "$ws" --no-same-owner --no-same-permissions --no-overwrite-dir "${PATHS[@]}"
+	if find "$ws" -type l | grep -q .; then
+		log "refusing $sha: archive contains symlinks"
+		exit 2
+	fi
+	chmod 755 "$ws/build/elichat"
+
+	log "deploying $sha (live $(cat /opt/elichat/DEPLOYED 2>/dev/null || echo none))"
+	if /usr/local/sbin/estro-deploy "$ws" "$sha" >&2; then
+		log "deployed $sha"
+	else
+		log "deploy of $sha failed"
+		exit 1
+	fi
+}
+
+case "${cmd[0]:-}" in
+deploy) deploy_app "${cmd[1]:-}" ;;
+*)
+	echo "denied: '${SSH_ORIGINAL_COMMAND:-}'" >&2
+	exit 126
+	;;
+esac

@@ -1,10 +1,14 @@
 # CI and deploy.
 #   check   - every push and pull request: go vet/test, astro check, build (GitHub-hosted).
-#   deploy  - pushes to master after check passes: builds on the self-hosted runner that
-#             lives on the production host (`chat`, label "chat") and hands the artifacts
-#             to /usr/local/sbin/estro-deploy, a root gate installed by scripts/runner-install.sh.
-#             The host is not reachable from the internet, so nothing SSHes in and the
-#             workflow needs no secrets; the runner only makes outbound calls to GitHub.
+#   deploy  - pushes to master after check passes: builds on the self-hosted runner divide-deploy
+#             (CT 204 on the Proxmox host divide, 172.16.5.204, labels divide + deploy only) and
+#             streams the artifacts over SSH to chat (172.16.5.64, same private network), where the
+#             CHAT_DEPLOY_KEY is pinned to /usr/local/sbin/estro-deploy-gate (deploy/estro-deploy-gate,
+#             installed by scripts/gate-install.sh, never updated by CI). The gate accepts only
+#             `deploy <sha>` with the tarball on stdin, from the runner's address only, and hands it
+#             to estro-deploy. divide's firewall lets the runner reach chat's tcp/22 and nothing else.
+#             The runner's group (y9x `deploy`) admits only this file at refs/heads/master, so
+#             pull requests can never get a job onto it; the key lives only in $RUNNER_TEMP.
 name: CI
 
 on:
@@ -49,12 +53,19 @@ jobs:
     name: Deploy to chat
     needs: check
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    runs-on: [self-hosted, linux, chat]
+    # the runner's own labels: it is registered without the default ones
+    runs-on: [divide, deploy]
+    timeout-minutes: 20
     concurrency:
       group: production-deploy
       cancel-in-progress: false
+    env:
+      CHAT_HOST: 172.16.5.64
+      CHAT_HOST_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINRZZD21PMzuW+v9PbnOYEKNPq5tfUeYpK7TbCOh6blS
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
@@ -68,5 +79,30 @@ jobs:
         run: |
           CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o build/elichat ./cmd/elichat
           cd frontend && npm ci --no-audit --no-fund && npm run build
-      - name: Ship and restart
-        run: sudo /usr/local/sbin/estro-deploy "$GITHUB_WORKSPACE" "$GITHUB_SHA"
+      - name: Package
+        run: |
+          tar -czf "$RUNNER_TEMP/estro.tar.gz" build/elichat frontend/dist ext \
+            deploy/elichat.service deploy/nginx-estro.help.conf
+          ls -l "$RUNNER_TEMP/estro.tar.gz"
+      - name: Configure SSH
+        env:
+          CHAT_DEPLOY_KEY: ${{ secrets.CHAT_DEPLOY_KEY }}
+        run: |
+          if [[ -z "$CHAT_DEPLOY_KEY" ]]; then
+            echo "::error::CHAT_DEPLOY_KEY secret is not set"
+            exit 1
+          fi
+          dir="$RUNNER_TEMP/chat-ssh"
+          install -d -m 700 "$dir"
+          (umask 077 && printf '%s\n' "$CHAT_DEPLOY_KEY" >"$dir/key")
+          echo "$CHAT_HOST $CHAT_HOST_KEY" >"$dir/known_hosts"
+      - name: Ship ${{ github.sha }} to chat
+        run: |
+          dir="$RUNNER_TEMP/chat-ssh"
+          ssh -F /dev/null -i "$dir/key" -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o ConnectTimeout=20 -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$dir/known_hosts" \
+            "root@$CHAT_HOST" deploy "$GITHUB_SHA" <"$RUNNER_TEMP/estro.tar.gz"
+      - name: Clean up
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/chat-ssh" "$RUNNER_TEMP/estro.tar.gz"

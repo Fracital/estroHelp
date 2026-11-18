@@ -64,7 +64,9 @@ Epsilon is served by a browser-based provider in `internal/zai`: a pool of heade
 |---|---|---|
 | `ZAI_DISABLED` | `false` | `true` leaves Epsilon out entirely (no pool, model reported unavailable). |
 | `ZAI_TRANSPORT` | `patchright` | `patchright` runs the browser pool; `browserless` uses direct HTTP and needs a captcha token source (`ZAI_EXT_TOKEN` or `ZAI_CAPTCHA_PARAM`). |
-| `ZAI_BROWSER_POOL_SIZE` | `3` (example sets 2) | Concurrent browser workers, max 16. Each is a Chromium process; size to RAM. |
+| `ZAI_BROWSER_POOL_SIZE` | `3` (example sets 2) | Concurrent browser workers, max 16 and never more than the CPUs the server may use: a busy browser renders in software and takes most of a core. Each is a Chromium process; size to RAM. |
+| `ZAI_BROWSER_IDLE_SECONDS` | `300` | Browsers start on their first turn and stop after this long without one, so an idle server runs no Chromium. The first turn after a quiet spell pays a cold start of about 10-15s. `0` keeps them running. |
+| `ZAI_BROWSER_PREWARM` | `false` | `true` starts every worker's browser at boot instead of on first use. |
 | `ZAI_TOKEN` | empty | A signed-in account token for the provider. Empty uses guest sessions, which allow only the default model. |
 | `ZAI_CONFIG_FILE` | `zai_config.json` | File holding that token as `{"token":"..."}` when `ZAI_TOKEN` is unset. Git-ignored. |
 | `ZAI_STREAM_HOLD` | `2000` (example sets 160) | Characters of answer text the worker buffers before streaming, so a turn that turns into a tool call can still be retried unseen. The default hides streaming on short replies; 160 is a good interactive value. |

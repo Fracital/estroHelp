@@ -32,9 +32,11 @@ func ServeResponses(w http.ResponseWriter, r *http.Request, body []byte) {
 	handleZaiResponses(w, r2, "")
 }
 
-// Prewarm starts the browser pool in the background (no-op for browserless transport).
+// Prewarm starts the browser pool in the background when ZAI_BROWSER_PREWARM
+// is true. Otherwise browsers start on their first turn (and it is a no-op for
+// the browserless transport).
 func Prewarm() {
-	if zaiTransport() == "patchright" {
+	if zaiTransport() == "patchright" && zaiEnvBool("ZAI_BROWSER_PREWARM", false) {
 		zaiGetBrowserPool().prewarm()
 	}
 }

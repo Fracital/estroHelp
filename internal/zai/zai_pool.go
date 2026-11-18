@@ -20,10 +20,16 @@ import (
 	"time"
 )
 
-// The patchright transport: a pool of warm headed browsers under xvfb-run,
-// each running ext/zai_browser.py and serving one turn at a time. The pool
-// size is the number of concurrent turns; Claude Code subagent fan-out needs
-// several, and a single serialized browser starves it.
+// The patchright transport: a pool of headed browsers under xvfb-run, each
+// running ext/zai_browser.py and serving one turn at a time. The pool size is
+// the number of concurrent turns; Claude Code subagent fan-out needs several,
+// and a single serialized browser starves it.
+//
+// Browsers are on demand: a worker starts its browser on its first turn and
+// stops it after ZAI_BROWSER_IDLE_SECONDS without one, so an idle server runs
+// no Chromium at all. The first turn after a quiet spell pays the cold start
+// (about 10-15s through a Mullvad relay, live). ZAI_BROWSER_PREWARM=true
+// starts every worker at boot instead.
 
 const (
 	// zaiBrowserTurnSeconds bounds one turn inside the script. It is long on
@@ -37,6 +43,12 @@ const (
 	// zaiBrowserStartTimeout bounds launch plus first page load; a cold
 	// Mullvad relay took 16s to load the page, live.
 	zaiBrowserStartTimeout = 90 * time.Second
+	// zaiBrowserStopGrace is how long an idle browser gets to exit on its own
+	// after stdin closes; a clean exit lets Chromium and xvfb-run remove their
+	// /tmp profile and auth dirs, which SIGKILL would leave behind.
+	zaiBrowserStopGrace = 15 * time.Second
+	// zaiBrowserIdleDefault is ZAI_BROWSER_IDLE_SECONDS when unset.
+	zaiBrowserIdleDefault = 5 * time.Minute
 )
 
 // zaiBrowserTurn is one stdin line for the script.
@@ -173,17 +185,36 @@ func zaiGetBrowserPool() *zaiBrowserPool {
 		size := zaiBrowserPoolSize()
 		proxies, mullvad := zaiBrowserProxies(size)
 		zaiBrowserPoolInstance = newZaiBrowserPool(size, proxies, mullvad)
+		if idle := zaiBrowserIdleTimeout(); idle > 0 {
+			go zaiBrowserPoolInstance.reapIdleLoop(idle)
+		}
 	})
 	return zaiBrowserPoolInstance
 }
 
-// zaiBrowserPoolSize reads ZAI_BROWSER_POOL_SIZE (default 3, max 16).
+// zaiBrowserPoolSize reads ZAI_BROWSER_POOL_SIZE (default 3, max 16), capped
+// at the CPUs this process may run on: each busy browser renders in software
+// and takes most of a core, so more workers than cores only queue on the CPU.
 func zaiBrowserPoolSize() int {
 	n, err := strconv.Atoi(strings.TrimSpace(os.Getenv("ZAI_BROWSER_POOL_SIZE")))
 	if err != nil || n <= 0 {
 		n = 3
 	}
-	return min(n, 16)
+	return max(1, min(n, 16, runtime.NumCPU()))
+}
+
+// zaiBrowserIdleTimeout reads ZAI_BROWSER_IDLE_SECONDS: how long a browser
+// may sit without a turn before it is stopped (default 300; 0 never stops).
+func zaiBrowserIdleTimeout() time.Duration {
+	raw := strings.TrimSpace(os.Getenv("ZAI_BROWSER_IDLE_SECONDS"))
+	if raw == "" {
+		return zaiBrowserIdleDefault
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 0 {
+		return zaiBrowserIdleDefault
+	}
+	return time.Duration(n) * time.Second
 }
 
 // zaiBrowserProxies reads ZAI_BROWSER_PROXY: a comma-separated proxy list, or
@@ -235,11 +266,40 @@ func (p *zaiBrowserPool) prewarm() {
 	for i := 0; i < cap(p.workers); i++ {
 		w := <-p.workers
 		go func() {
-			defer func() { p.workers <- w }()
+			defer func() { w.lastUsed = time.Now(); p.workers <- w }()
 			if err := w.ensure(); err != nil {
 				logf("event=zai_browser_prewarm_error worker=%d err=%v", w.id, err)
 			}
 		}()
+	}
+}
+
+// reapIdleLoop stops browsers that have gone idle for longer than idle.
+func (p *zaiBrowserPool) reapIdleLoop(idle time.Duration) {
+	t := time.NewTicker(min(max(idle/4, time.Second), 30*time.Second))
+	defer t.Stop()
+	for range t.C {
+		p.reapIdle(idle)
+	}
+}
+
+// reapIdle stops every free worker whose browser has had no turn for idle.
+// It only touches workers it can take from the pool without waiting, so a
+// worker mid-turn is never stopped; a turn that wants a worker while it is
+// being stopped takes another or respawns it.
+func (p *zaiBrowserPool) reapIdle(idle time.Duration) {
+	for i := 0; i < cap(p.workers); i++ {
+		var w *zaiBrowserWorker
+		select {
+		case w = <-p.workers:
+		default:
+			return
+		}
+		if w.isAlive() && time.Since(w.lastUsed) >= idle {
+			logf("event=zai_browser_idle_stop worker=%d idle=%s", w.id, time.Since(w.lastUsed).Round(time.Second))
+			w.stop()
+		}
+		p.workers <- w
 	}
 }
 
@@ -252,7 +312,7 @@ func (p *zaiBrowserPool) send(ctx context.Context, turn []byte, onDelta func(str
 	case <-ctx.Done():
 		return nil, fmt.Errorf("waiting for a browser: %w", ctx.Err())
 	}
-	defer func() { p.workers <- w }()
+	defer func() { w.lastUsed = time.Now(); p.workers <- w }()
 	turnCtx, cancel := context.WithTimeout(ctx, zaiBrowserTurnTimeout)
 	defer cancel()
 	return w.send(turnCtx, turn, onDelta)
@@ -269,6 +329,7 @@ type zaiBrowserWorker struct {
 	stdin      io.WriteCloser
 	stdout     *bufio.Scanner
 	stdoutFile *os.File
+	lastUsed   time.Time // end of the last turn; written only by the worker's holder
 
 	aliveMu sync.Mutex
 	cmd     *exec.Cmd
@@ -562,6 +623,20 @@ func (w *zaiBrowserWorker) spawn() error {
 	}
 	logf("event=zai_browser_ready worker=%d pid=%d proxied=%t elapsed=%s", w.id, cmd.Process.Pid, w.proxy != "", time.Since(started).Round(time.Millisecond))
 	return nil
+}
+
+// stop ends an idle browser cleanly: closing stdin ends the script's turn
+// loop, which closes Chromium and lets xvfb-run clean up. A browser that has
+// not exited after zaiBrowserStopGrace is killed. Only the worker's holder
+// may call it.
+func (w *zaiBrowserWorker) stop() {
+	if w.stdin != nil {
+		_ = w.stdin.Close()
+	}
+	for deadline := time.Now().Add(zaiBrowserStopGrace); w.isAlive() && time.Now().Before(deadline); {
+		time.Sleep(100 * time.Millisecond)
+	}
+	w.kill()
 }
 
 // zaiAfterReapHook lets a test hold spawn until the child has been reaped.

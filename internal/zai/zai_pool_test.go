@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -259,5 +260,73 @@ func TestZaiBrowserWorkerRotatesRelayOnWAFBlock(t *testing.T) {
 	out, err = pool.send(context.Background(), zaiTurn("after"), nil)
 	if err != nil || !strings.HasSuffix(out.Answer, ":socks5://fresh.relay:1080") {
 		t.Fatalf("worker not moved to a fresh relay: %v %+v", err, out)
+	}
+}
+
+func TestZaiBrowserPoolStartsOnDemandAndStopsWhenIdle(t *testing.T) {
+	setupFakeZaiBrowser(t)
+	pool := newZaiBrowserPool(1, nil, false)
+	defer killPool(pool)
+
+	w := <-pool.workers
+	alive := w.isAlive()
+	pool.workers <- w
+	if alive {
+		t.Fatal("a new pool must not start a browser before its first turn")
+	}
+
+	first, err := pool.send(context.Background(), zaiTurn("a"), nil)
+	if err != nil || !first.OK {
+		t.Fatalf("first send: %v %+v", err, first)
+	}
+	// Not idle long enough yet: the browser stays up.
+	pool.reapIdle(time.Hour)
+	w = <-pool.workers
+	alive = w.isAlive()
+	pool.workers <- w
+	if !alive {
+		t.Fatal("reapIdle stopped a browser that was not idle")
+	}
+
+	start := time.Now()
+	pool.reapIdle(0)
+	w = <-pool.workers
+	alive = w.isAlive()
+	pool.workers <- w
+	if alive {
+		t.Fatal("reapIdle left an idle browser running")
+	}
+	// Closing stdin ends the fake's turn loop, so the stop is clean, not the SIGKILL fallback.
+	if elapsed := time.Since(start); elapsed >= zaiBrowserStopGrace {
+		t.Fatalf("idle stop waited out the grace period (%v): the browser did not exit on stdin close", elapsed)
+	}
+
+	second, err := pool.send(context.Background(), zaiTurn("b"), nil)
+	if err != nil || !second.OK {
+		t.Fatalf("send after idle stop: %v %+v", err, second)
+	}
+	pid := func(answer string) string { return strings.Split(answer, ":")[1] }
+	if pid(first.Answer) == pid(second.Answer) {
+		t.Fatalf("send after idle stop reused the stopped process %s", pid(first.Answer))
+	}
+}
+
+func TestZaiBrowserPoolSizeIsCappedAtCPUs(t *testing.T) {
+	t.Setenv("ZAI_BROWSER_POOL_SIZE", "64")
+	if got, want := zaiBrowserPoolSize(), min(16, runtime.NumCPU()); got != want {
+		t.Fatalf("pool size = %d, want %d", got, want)
+	}
+	t.Setenv("ZAI_BROWSER_POOL_SIZE", "")
+	if got, want := zaiBrowserPoolSize(), min(3, runtime.NumCPU()); got != want {
+		t.Fatalf("default pool size = %d, want %d", got, want)
+	}
+}
+
+func TestZaiBrowserIdleTimeout(t *testing.T) {
+	for raw, want := range map[string]time.Duration{"": zaiBrowserIdleDefault, "0": 0, "45": 45 * time.Second, "junk": zaiBrowserIdleDefault, "-3": zaiBrowserIdleDefault} {
+		t.Setenv("ZAI_BROWSER_IDLE_SECONDS", raw)
+		if got := zaiBrowserIdleTimeout(); got != want {
+			t.Errorf("ZAI_BROWSER_IDLE_SECONDS=%q: got %v, want %v", raw, got, want)
+		}
 	}
 }

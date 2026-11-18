@@ -210,6 +210,14 @@ def _parse_sse(text):
     return "".join(answer), "".join(thinking), usage, err
 
 
+_HIDE_HERO_JS = """(() => { try {
+  if (location.hostname !== 'chat.z.ai') return;
+  const sheet = new CSSStyleSheet();
+  sheet.replaceSync('.agent-hero-cloud-drift{display:none!important}');
+  document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+} catch (e) {} })()"""
+
+
 class ZaiBrowser:
     def __init__(self, headless=False, proxy=None, token=None):
         # Headed under xvfb: headless-shell fails the Aliyun/Cloudflare fingerprint.
@@ -256,6 +264,11 @@ class ZaiBrowser:
                 return route.abort()
             return route.fallback()
         ctx.route("**/*", _block)
+        # The home page's hero is a canvas animation (.agent-hero-cloud-drift)
+        # that Chromium repaints forever in software under xvfb: ~0.35-0.5 of a
+        # core per idle browser, live. Hidden, an idle page costs ~1%. An adopted
+        # sheet survives the page's own head/DOM churn and every navigation.
+        ctx.add_init_script(_HIDE_HERO_JS)
 
         if self.token:
             # Runs before the page's own scripts, so its first auth call uses the account.
